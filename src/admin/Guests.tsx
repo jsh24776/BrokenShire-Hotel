@@ -1,6 +1,6 @@
   import React, { useState, useMemo } from 'react';
   import { Search, Plus, Filter, Mail, Phone, MoreVertical, X, User, MapPin, CheckCircle, Calendar, CreditCard, History, Edit2, ShieldCheck, Clock } from 'lucide-react';
-  import { motion, AnimatePresence } from 'framer-motion';
+  import { motion, AnimatePresence } from 'motion/react';
   import { useToast } from '../components/ToastContext';
 
   const initialGuests = [

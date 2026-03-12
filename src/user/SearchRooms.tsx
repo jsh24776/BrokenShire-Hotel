@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Search, Users, Calendar, Filter, Star, Wifi, Coffee, Wind, Tv, X, ChevronRight, ChevronLeft, Check, ShieldCheck, Home } from 'lucide-react';
 import { useToast } from '../components/ToastContext';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 const rooms = [
   {

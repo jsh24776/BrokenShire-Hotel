@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Search, Plus, Filter, MoreVertical, Edit, Trash2, CheckCircle, X, Calendar, Users, Home, CreditCard, DollarSign, Info, UserPlus, ArrowRight, Tag } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { useToast } from '../components/ToastContext';
 import { useNavigate } from 'react-router-dom';
 

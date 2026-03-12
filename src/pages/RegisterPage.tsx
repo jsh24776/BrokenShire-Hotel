@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { User, Mail, Phone, MapPin, Lock, ArrowRight, Home, UserPlus, CheckCircle } from 'lucide-react';
 import { useToast } from '../components/ToastContext';
 

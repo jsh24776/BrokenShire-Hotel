@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Search, Plus, Filter, MoreVertical, Edit, Trash2, X, CheckCircle, Home, Users, Wifi, Tv, Wind, Coffee, Waves, Eye, Zap, Utensils, Bath, Droplets } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { useToast } from '../components/ToastContext';
 
 const AMENITIES_LIST = [
