@@ -1,0 +1,286 @@
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { X, Mail, Lock, User, ArrowRight, Shield } from 'lucide-react';
+
+interface AuthModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onLogin: (user: { name: string; role: 'user' | 'admin' }) => void;
+}
+
+export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
+  const [authMode, setAuthMode] = useState<'login' | 'signup' | 'admin' | 'forgot_password'>('login');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+
+  // Reset state when modal opens/closes
+  useEffect(() => {
+    if (isOpen) {
+      setError('');
+      setName('');
+      setEmail('');
+      setPassword('');
+      setAuthMode('login');
+      setResetSent(false);
+    }
+  }, [isOpen]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (authMode === 'forgot_password') {
+      if (!email) {
+        setError('Please enter your email address.');
+        return;
+      }
+      setIsLoading(true);
+      setTimeout(() => {
+        setIsLoading(false);
+        setResetSent(true);
+      }, 800);
+      return;
+    }
+
+    if (!email || !password || (authMode === 'signup' && !name)) {
+      setError('Please fill in all required fields.');
+      return;
+    }
+
+    setIsLoading(true);
+
+    // Simulate API call for frontend-only functionality
+    setTimeout(() => {
+      setIsLoading(false);
+      
+      if (authMode === 'admin') {
+        // Admin login accepts any credentials for frontend demo
+        onLogin({ name: 'Admin User', role: 'admin' });
+      } else {
+        // Use the provided name for registration, or extract from email for login
+        const userName = authMode === 'login' ? email.split('@')[0] : name;
+        onLogin({ name: userName, role: 'user' });
+      }
+    }, 800);
+  };
+
+  const getHeaderText = () => {
+    if (authMode === 'admin') return 'Admin Portal';
+    if (authMode === 'forgot_password') return 'Reset Password';
+    if (authMode === 'login') return 'Welcome Back';
+    return 'Join Brokenshire';
+  };
+
+  const getSubHeaderText = () => {
+    if (authMode === 'admin') return 'Sign in with any credentials to access the dashboard.';
+    if (authMode === 'forgot_password') return 'Enter your email to receive reset instructions.';
+    if (authMode === 'login') return 'Sign in to manage your reservations.';
+    return 'Create an account for exclusive nature retreats.';
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-forest-900/40 backdrop-blur-sm z-[60]"
+          />
+
+          {/* Modal */}
+          <div className="fixed inset-0 flex items-center justify-center z-[70] p-4 pointer-events-none">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ type: 'spring', duration: 0.5 }}
+              className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden pointer-events-auto relative"
+            >
+              {/* Close Button */}
+              <button
+                onClick={onClose}
+                className="absolute top-4 right-4 p-2 text-forest-800/50 hover:text-forest-900 hover:bg-forest-50 rounded-full transition-colors z-10"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              {/* Header */}
+              <div className={`px-8 py-10 text-center relative overflow-hidden ${authMode === 'admin' ? 'bg-earth-100' : 'bg-forest-50'}`}>
+                <div className={`absolute top-0 left-0 w-32 h-32 rounded-full blur-2xl -translate-x-1/2 -translate-y-1/2 ${authMode === 'admin' ? 'bg-earth-300/30' : 'bg-forest-200/30'}`}></div>
+                
+                {authMode === 'admin' && (
+                  <div className="mx-auto w-12 h-12 bg-forest-900 rounded-full flex items-center justify-center mb-4 relative z-10 shadow-lg">
+                    <Shield className="w-6 h-6 text-earth-400" />
+                  </div>
+                )}
+                
+                <h2 className="text-3xl font-serif text-forest-900 relative z-10">
+                  {getHeaderText()}
+                </h2>
+                <p className="text-forest-700/70 mt-2 relative z-10 text-sm">
+                  {getSubHeaderText()}
+                </p>
+              </div>
+
+              {/* Form */}
+              <form onSubmit={handleSubmit} className="p-8 space-y-5">
+                {error && (
+                  <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm text-center">
+                    {error}
+                  </div>
+                )}
+                
+                {resetSent && authMode === 'forgot_password' && (
+                  <div className="bg-emerald-50 text-emerald-700 p-4 rounded-xl text-sm text-center border border-emerald-100">
+                    <p className="font-medium mb-1">Reset link sent!</p>
+                    <p>Please check your email for instructions to reset your password.</p>
+                  </div>
+                )}
+
+                {(!resetSent || authMode !== 'forgot_password') && (
+                  <>
+                    <AnimatePresence mode="wait">
+                      {authMode === 'signup' && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="space-y-1 overflow-hidden"
+                        >
+                          <label className="text-sm font-medium text-forest-800 ml-1">Full Name</label>
+                          <div className="relative">
+                            <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-forest-800/40" />
+                            <input
+                              type="text"
+                              value={name}
+                              onChange={(e) => setName(e.target.value)}
+                              placeholder="John Doe"
+                              className="w-full pl-10 pr-4 py-3 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all"
+                            />
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium text-forest-800 ml-1">Email Address</label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-forest-800/40" />
+                        <input
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder={authMode === 'admin' ? "admin@brokenshire.com" : "you@example.com"}
+                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    {authMode !== 'forgot_password' && (
+                      <div className="space-y-1">
+                        <div className="flex justify-between items-center ml-1">
+                          <label className="text-sm font-medium text-forest-800">Password</label>
+                          {authMode === 'login' && (
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                setAuthMode('forgot_password');
+                                setError('');
+                              }}
+                              className="text-xs text-earth-600 hover:text-earth-700"
+                            >
+                              Forgot password?
+                            </button>
+                          )}
+                        </div>
+                        <div className="relative">
+                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-forest-800/40" />
+                          <input
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="••••••••"
+                            className="w-full pl-10 pr-4 py-3 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={isLoading}
+                      className={`w-full text-white py-3.5 rounded-xl font-medium transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-70 ${
+                        authMode === 'admin' ? 'bg-forest-900 hover:bg-black' : 'bg-forest-700 hover:bg-forest-800'
+                      }`}
+                    >
+                      {isLoading ? (
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          {authMode === 'login' ? 'Sign In' : authMode === 'signup' ? 'Create Account' : authMode === 'forgot_password' ? 'Send Reset Link' : 'Login to Dashboard'}
+                          <ArrowRight className="w-4 h-4" />
+                        </>
+                      )}
+                    </button>
+                  </>
+                )}
+
+                <div className="text-center pt-4 border-t border-earth-100 mt-6 flex flex-col gap-3">
+                  {authMode === 'forgot_password' ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthMode('login');
+                        setResetSent(false);
+                      }}
+                      className="text-sm text-earth-600 hover:text-earth-700 font-medium transition-colors"
+                    >
+                      Back to Sign In
+                    </button>
+                  ) : authMode !== 'admin' ? (
+                    <>
+                      <p className="text-sm text-forest-800/70">
+                        {authMode === 'login' ? "Don't have an account? " : "Already have an account? "}
+                        <button
+                          type="button"
+                          onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')}
+                          className="text-earth-600 hover:text-earth-700 font-medium transition-colors"
+                        >
+                          {authMode === 'login' ? 'Sign up' : 'Sign in'}
+                        </button>
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setAuthMode('admin')}
+                        className="text-xs text-forest-800/50 hover:text-forest-800 flex items-center justify-center gap-1 mx-auto transition-colors"
+                      >
+                        <Shield className="w-3 h-3" />
+                        Admin Access
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setAuthMode('login')}
+                      className="text-sm text-earth-600 hover:text-earth-700 font-medium transition-colors"
+                    >
+                      Return to Guest Login
+                    </button>
+                  )}
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
