@@ -1,13 +1,13 @@
 import { useState, useMemo } from 'react';
-import { Search, Users, Calendar, Filter, Star, Wifi, Coffee, Wind, Tv, X, ChevronRight, ChevronLeft, Check, ShieldCheck } from 'lucide-react';
+import { Search, Users, Calendar, Filter, Star, Wifi, Coffee, Wind, Tv, X, ChevronRight, ChevronLeft, Check, ShieldCheck, Home } from 'lucide-react';
 import { useToast } from '../components/ToastContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const rooms = [
   {
-    id: 1,
+    id: '101',
     name: 'Forest Suite',
-    price: 250,
+    price: 12500,
     capacity: 2,
     size: '45 sqm',
     image: 'https://images.unsplash.com/photo-1510798831971-661eb04b3739?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
@@ -16,26 +16,26 @@ const rooms = [
     available: true
   },
   {
-    id: 2,
-    name: 'Garden Retreat',
-    price: 180,
-    capacity: 2,
-    size: '35 sqm',
+    id: '201',
+    name: 'Garden Villa',
+    price: 18000,
+    capacity: 4,
+    size: '85 sqm',
     image: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-    description: 'A peaceful haven with direct access to our botanical gardens. Perfect for couples seeking a quiet getaway.',
-    amenities: ['Queen Bed', 'Garden Access', 'Rain Shower'],
+    description: 'A peaceful haven with direct access to our botanical gardens. Perfect for families seeking a quiet getaway.',
+    amenities: ['Queen Beds', 'Garden Access', 'Rain Shower', 'Private Pool'],
     available: true
   },
   {
-    id: 3,
-    name: 'Canopy Villa',
-    price: 450,
-    capacity: 4,
-    size: '85 sqm',
+    id: '301',
+    name: 'Canopy Room',
+    price: 8500,
+    capacity: 2,
+    size: '35 sqm',
     image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-    description: 'Our most luxurious offering. Elevated among the treetops with a private deck and outdoor soaking tub.',
-    amenities: ['2 Bedrooms', 'Private Deck', 'Outdoor Tub', 'Kitchenette'],
-    available: false
+    description: 'Elevated among the treetops with a private deck and stunning views of the forest canopy.',
+    amenities: ['King Bed', 'Private Deck', 'Tree View'],
+    available: true
   }
 ];
 
@@ -43,13 +43,16 @@ export default function SearchRooms() {
   const { showToast } = useToast();
   const [dates, setDates] = useState({ checkIn: '', checkOut: '' });
   const [guests, setGuests] = useState('2');
-  const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [bookingStep, setBookingStep] = useState(1);
-  const [addOns, setAddOns] = useState({
-    breakfast: false,
-    spa: false,
-    transfer: false
+  const [guestDetails, setGuestDetails] = useState({
+    fullName: 'John Doe', // Mock pre-filled
+    email: 'john.doe@example.com',
+    phone: '+63 912 345 6789',
+    specialRequests: ''
   });
+  const [paymentMethod] = useState('PayPal'); // PayPal only for online
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [isBooking, setIsBooking] = useState(false);
 
   const selectedRoom = useMemo(() => 
@@ -58,38 +61,32 @@ export default function SearchRooms() {
   );
 
   const pricing = useMemo(() => {
-    if (!selectedRoom || !dates.checkIn || !dates.checkOut) return { total: 0, nights: 0, roomTotal: 0, addOnTotal: 0 };
+    if (!selectedRoom || !dates.checkIn || !dates.checkOut) return { total: 0, nights: 0 };
     
     const start = new Date(dates.checkIn);
     const end = new Date(dates.checkOut);
     const nights = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
     
-    if (nights <= 0) return { total: 0, nights: 0, roomTotal: 0, addOnTotal: 0 };
+    if (nights <= 0) return { total: 0, nights: 0 };
     
-    const roomTotal = selectedRoom.price * nights;
-    let addOnTotal = 0;
-    if (addOns.breakfast) addOnTotal += 25 * nights;
-    if (addOns.spa) addOnTotal += 50;
-    if (addOns.transfer) addOnTotal += 40;
+    const total = selectedRoom.price * nights;
     
     return {
-      total: roomTotal + addOnTotal,
-      nights,
-      roomTotal,
-      addOnTotal
+      total,
+      nights
     };
-  }, [selectedRoom, dates, addOns]);
+  }, [selectedRoom, dates]);
 
-  const handleBookNow = (roomId: number) => {
-    if (!dates.checkIn || !dates.checkOut) {
-      showToast("Please select dates first", "error");
-      return;
-    }
+  const handleBookNow = (roomId: string) => {
     setSelectedRoomId(roomId);
     setBookingStep(1);
   };
 
   const handleConfirmBooking = async () => {
+    if (!acceptedTerms) {
+      showToast("Please accept the Terms & Conditions", "error");
+      return;
+    }
     setIsBooking(true);
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -98,7 +95,7 @@ export default function SearchRooms() {
     setIsBooking(false);
     setSelectedRoomId(null);
     setBookingStep(1);
-    setAddOns({ breakfast: false, spa: false, transfer: false });
+    setAcceptedTerms(false);
   };
 
   const handleSearch = () => {
@@ -180,7 +177,7 @@ export default function SearchRooms() {
               <div className="flex justify-between items-start mb-2">
                 <h3 className="text-xl font-serif font-semibold text-forest-900">{room.name}</h3>
                 <div className="text-right">
-                  <span className="text-lg font-semibold text-forest-900">${room.price}</span>
+                  <span className="text-lg font-semibold text-forest-900">₱{room.price.toLocaleString()}</span>
                   <span className="text-xs text-forest-700/70 block">/ night</span>
                 </div>
               </div>
@@ -258,7 +255,7 @@ export default function SearchRooms() {
 
               {/* Progress Bar */}
               <div className="flex border-b border-earth-100">
-                {[1, 2, 3].map((step) => (
+                {[1, 2, 3, 4, 5].map((step) => (
                   <div 
                     key={step}
                     className={`flex-1 h-1.5 transition-colors ${
@@ -279,52 +276,30 @@ export default function SearchRooms() {
                       exit={{ opacity: 0, x: -20 }}
                       className="space-y-6"
                     >
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium text-forest-800">Check-in</label>
-                          <div className="relative">
-                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-forest-400" />
-                            <input 
-                              type="date" 
-                              value={dates.checkIn}
-                              onChange={(e) => setDates({ ...dates, checkIn: e.target.value })}
-                              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 outline-none"
-                            />
+                      <div className="bg-earth-50 p-6 rounded-2xl border border-earth-100 space-y-4">
+                        <h3 className="text-xs font-bold text-forest-900 uppercase tracking-widest flex items-center gap-2">
+                          <Home className="w-4 h-4" />
+                          Selected Room
+                        </h3>
+                        <div className="grid grid-cols-2 gap-6">
+                          <div>
+                            <p className="text-[10px] font-bold text-forest-700/40 uppercase tracking-widest mb-1">Room Number</p>
+                            <p className="text-lg font-bold text-forest-900">{selectedRoom?.id}</p>
                           </div>
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium text-forest-800">Check-out</label>
-                          <div className="relative">
-                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-forest-400" />
-                            <input 
-                              type="date" 
-                              value={dates.checkOut}
-                              onChange={(e) => setDates({ ...dates, checkOut: e.target.value })}
-                              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 outline-none"
-                            />
+                          <div>
+                            <p className="text-[10px] font-bold text-forest-700/40 uppercase tracking-widest mb-1">Room Type</p>
+                            <p className="text-lg font-bold text-forest-900">{selectedRoom?.name}</p>
                           </div>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-forest-800">Number of Guests</label>
-                        <div className="relative">
-                          <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-forest-400" />
-                          <select 
-                            value={guests}
-                            onChange={(e) => setGuests(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 outline-none appearance-none"
-                          >
-                            <option value="1">1 Guest</option>
-                            <option value="2">2 Guests</option>
-                            <option value="3">3 Guests</option>
-                            <option value="4">4 Guests</option>
-                          </select>
+                          <div>
+                            <p className="text-[10px] font-bold text-forest-700/40 uppercase tracking-widest mb-1">Rate per Night</p>
+                            <p className="text-lg font-bold text-forest-900">₱{selectedRoom?.price.toLocaleString()}</p>
+                          </div>
                         </div>
                       </div>
                       <div className="bg-forest-50 p-4 rounded-2xl border border-forest-100 flex items-start gap-3">
                         <ShieldCheck className="w-5 h-5 text-forest-600 mt-0.5" />
                         <p className="text-sm text-forest-800/80 leading-relaxed">
-                          Your dates are currently available. We recommend booking soon to secure this rate.
+                          You have selected our premium {selectedRoom?.name}. Click next to provide your stay details.
                         </p>
                       </div>
                     </motion.div>
@@ -336,72 +311,57 @@ export default function SearchRooms() {
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -20 }}
-                      className="space-y-4"
+                      className="space-y-6"
                     >
-                      <h3 className="font-medium text-forest-900 mb-4">Enhance Your Stay</h3>
-                      <div className="space-y-3">
-                        <button 
-                          onClick={() => setAddOns(prev => ({ ...prev, breakfast: !prev.breakfast }))}
-                          className={`w-full p-4 rounded-2xl border-2 transition-all flex items-center justify-between ${
-                            addOns.breakfast ? 'border-forest-500 bg-forest-50' : 'border-earth-100 hover:border-earth-200'
-                          }`}
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className={`p-2 rounded-xl ${addOns.breakfast ? 'bg-forest-100 text-forest-700' : 'bg-earth-50 text-forest-400'}`}>
-                              <Coffee className="w-5 h-5" />
-                            </div>
-                            <div className="text-left">
-                              <p className="font-medium text-forest-900">Daily Breakfast</p>
-                              <p className="text-xs text-forest-700/60">Fresh organic buffet every morning</p>
-                            </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-forest-800">Check-in Date</label>
+                          <div className="relative">
+                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-forest-400" />
+                            <input 
+                              type="date" 
+                              value={dates.checkIn}
+                              onChange={(e) => setDates({ ...dates, checkIn: e.target.value })}
+                              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 outline-none"
+                            />
                           </div>
-                          <div className="text-right">
-                            <p className="font-semibold text-forest-900">$25</p>
-                            <p className="text-[10px] text-forest-700/60 uppercase tracking-wider">per night</p>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-forest-800">Check-out Date</label>
+                          <div className="relative">
+                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-forest-400" />
+                            <input 
+                              type="date" 
+                              value={dates.checkOut}
+                              onChange={(e) => setDates({ ...dates, checkOut: e.target.value })}
+                              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 outline-none"
+                            />
                           </div>
-                        </button>
-
-                        <button 
-                          onClick={() => setAddOns(prev => ({ ...prev, spa: !prev.spa }))}
-                          className={`w-full p-4 rounded-2xl border-2 transition-all flex items-center justify-between ${
-                            addOns.spa ? 'border-forest-500 bg-forest-50' : 'border-earth-100 hover:border-earth-200'
-                          }`}
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className={`p-2 rounded-xl ${addOns.spa ? 'bg-forest-100 text-forest-700' : 'bg-earth-50 text-forest-400'}`}>
-                              <Wind className="w-5 h-5" />
-                            </div>
-                            <div className="text-left">
-                              <p className="font-medium text-forest-900">Spa Access</p>
-                              <p className="text-xs text-forest-700/60">Unlimited access to thermal pools & sauna</p>
-                            </div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-forest-800">Number of Nights</label>
+                          <div className="w-full px-4 py-2.5 rounded-xl border border-earth-100 bg-earth-50 text-forest-900 font-bold">
+                            {pricing.nights > 0 ? pricing.nights : 0} Nights
                           </div>
-                          <div className="text-right">
-                            <p className="font-semibold text-forest-900">$50</p>
-                            <p className="text-[10px] text-forest-700/60 uppercase tracking-wider">per stay</p>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-forest-800">Number of Guests</label>
+                          <div className="relative">
+                            <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-forest-400" />
+                            <select 
+                              value={guests}
+                              onChange={(e) => setGuests(e.target.value)}
+                              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 outline-none appearance-none bg-white"
+                            >
+                              <option value="1">1 Guest</option>
+                              <option value="2">2 Guests</option>
+                              <option value="3">3 Guests</option>
+                              <option value="4">4 Guests</option>
+                            </select>
                           </div>
-                        </button>
-
-                        <button 
-                          onClick={() => setAddOns(prev => ({ ...prev, transfer: !prev.transfer }))}
-                          className={`w-full p-4 rounded-2xl border-2 transition-all flex items-center justify-between ${
-                            addOns.transfer ? 'border-forest-500 bg-forest-50' : 'border-earth-100 hover:border-earth-200'
-                          }`}
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className={`p-2 rounded-xl ${addOns.transfer ? 'bg-forest-100 text-forest-700' : 'bg-earth-50 text-forest-400'}`}>
-                              <Users className="w-5 h-5" />
-                            </div>
-                            <div className="text-left">
-                              <p className="font-medium text-forest-900">Airport Transfer</p>
-                              <p className="text-xs text-forest-700/60">Private shuttle to/from the airport</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold text-forest-900">$40</p>
-                            <p className="text-[10px] text-forest-700/60 uppercase tracking-wider">per trip</p>
-                          </div>
-                        </button>
+                        </div>
                       </div>
                     </motion.div>
                   )}
@@ -412,48 +372,135 @@ export default function SearchRooms() {
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -20 }}
-                      className="space-y-6"
+                      className="space-y-4"
                     >
-                      <div className="bg-earth-50 p-6 rounded-2xl border border-earth-100 space-y-4">
-                        <h3 className="font-medium text-forest-900 border-b border-earth-200 pb-3">Booking Summary</h3>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-forest-700/70">{selectedRoom?.name} x {pricing.nights} nights</span>
-                            <span className="font-medium text-forest-900">${pricing.roomTotal}</span>
-                          </div>
-                          {addOns.breakfast && (
-                            <div className="flex justify-between">
-                              <span className="text-forest-700/70">Daily Breakfast</span>
-                              <span className="font-medium text-forest-900">${25 * pricing.nights}</span>
-                            </div>
-                          )}
-                          {addOns.spa && (
-                            <div className="flex justify-between">
-                              <span className="text-forest-700/70">Spa Access</span>
-                              <span className="font-medium text-forest-900">$50</span>
-                            </div>
-                          )}
-                          {addOns.transfer && (
-                            <div className="flex justify-between">
-                              <span className="text-forest-700/70">Airport Transfer</span>
-                              <span className="font-medium text-forest-900">$40</span>
-                            </div>
-                          )}
+                      <div className="grid grid-cols-1 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-sm font-medium text-forest-800">Full Name</label>
+                          <input 
+                            type="text" 
+                            value={guestDetails.fullName}
+                            onChange={(e) => setGuestDetails({ ...guestDetails, fullName: e.target.value })}
+                            className="w-full px-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 outline-none"
+                          />
                         </div>
-                        <div className="pt-4 border-t border-earth-200 flex justify-between items-center">
-                          <span className="font-semibold text-forest-900">Total Amount</span>
-                          <span className="text-2xl font-serif font-bold text-forest-900">${pricing.total}</span>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className="text-sm font-medium text-forest-800">Email Address</label>
+                            <input 
+                              type="email" 
+                              value={guestDetails.email}
+                              onChange={(e) => setGuestDetails({ ...guestDetails, email: e.target.value })}
+                              className="w-full px-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 outline-none"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-sm font-medium text-forest-800">Phone Number</label>
+                            <input 
+                              type="tel" 
+                              value={guestDetails.phone}
+                              onChange={(e) => setGuestDetails({ ...guestDetails, phone: e.target.value })}
+                              className="w-full px-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 outline-none"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-sm font-medium text-forest-800">Special Requests (Optional)</label>
+                          <textarea 
+                            rows={3}
+                            value={guestDetails.specialRequests}
+                            onChange={(e) => setGuestDetails({ ...guestDetails, specialRequests: e.target.value })}
+                            placeholder="e.g. Early check-in, extra pillows..."
+                            className="w-full px-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 outline-none resize-none"
+                          />
                         </div>
                       </div>
+                    </motion.div>
+                  )}
 
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2 text-xs text-forest-700/60">
-                          <Check className="w-3 h-3 text-emerald-500" />
-                          <span>Free cancellation until 48 hours before check-in</span>
+                  {bookingStep === 4 && (
+                    <motion.div 
+                      key="step4"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      className="space-y-6"
+                    >
+                      <div className="bg-earth-50 p-6 rounded-2xl border border-earth-100 space-y-6">
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-bold text-forest-700/40 uppercase tracking-widest">Payment Method</p>
+                          <div className="flex items-center gap-4 p-4 bg-white rounded-xl border-2 border-forest-500 shadow-sm">
+                            <div className="w-12 h-8 bg-[#003087] rounded flex items-center justify-center text-white font-bold italic text-xs">PayPal</div>
+                            <div>
+                              <p className="font-bold text-forest-900">PayPal</p>
+                              <p className="text-[10px] text-forest-700/60">Secure online payment</p>
+                            </div>
+                            <div className="ml-auto">
+                              <Check className="w-5 h-5 text-forest-600" />
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-forest-700/60">
-                          <Check className="w-3 h-3 text-emerald-500" />
-                          <span>No payment required until arrival</span>
+                        
+                        <div className="pt-4 border-t border-earth-200 space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-forest-700/70">Rate per Night</span>
+                            <span className="font-medium text-forest-900">₱{selectedRoom?.price.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-forest-700/70">Number of Nights</span>
+                            <span className="font-medium text-forest-900">{pricing.nights}</span>
+                          </div>
+                          <div className="flex justify-between items-center pt-4 border-t border-earth-200">
+                            <span className="font-bold text-forest-900">Total Amount</span>
+                            <span className="text-3xl font-serif font-bold text-forest-900">₱{pricing.total.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {bookingStep === 5 && (
+                    <motion.div 
+                      key="step5"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      className="space-y-6"
+                    >
+                      <div className="space-y-4">
+                        <h3 className="font-serif font-bold text-forest-900 text-lg">Review Your Booking</h3>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div className="bg-earth-50 p-4 rounded-xl border border-earth-100">
+                            <p className="text-[10px] font-bold text-forest-700/40 uppercase tracking-widest mb-1">Stay Details</p>
+                            <p className="font-bold text-forest-900">{dates.checkIn} to {dates.checkOut}</p>
+                            <p className="text-xs text-forest-700/60">{pricing.nights} Nights • {guests} Guests</p>
+                          </div>
+                          <div className="bg-earth-50 p-4 rounded-xl border border-earth-100">
+                            <p className="text-[10px] font-bold text-forest-700/40 uppercase tracking-widest mb-1">Room Details</p>
+                            <p className="font-bold text-forest-900">{selectedRoom?.name}</p>
+                            <p className="text-xs text-forest-700/60">Room {selectedRoom?.id}</p>
+                          </div>
+                          <div className="bg-earth-50 p-4 rounded-xl border border-earth-100 col-span-2">
+                            <p className="text-[10px] font-bold text-forest-700/40 uppercase tracking-widest mb-1">Guest Information</p>
+                            <p className="font-bold text-forest-900">{guestDetails.fullName}</p>
+                            <p className="text-xs text-forest-700/60">{guestDetails.email} • {guestDetails.phone}</p>
+                          </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-earth-100">
+                          <label className="flex items-start gap-3 cursor-pointer group">
+                            <div className="mt-1">
+                              <input 
+                                type="checkbox" 
+                                checked={acceptedTerms}
+                                onChange={(e) => setAcceptedTerms(e.target.checked)}
+                                className="w-4 h-4 rounded border-earth-300 text-forest-600 focus:ring-forest-500"
+                              />
+                            </div>
+                            <span className="text-xs text-forest-700 leading-relaxed group-hover:text-forest-900 transition-colors">
+                              I agree to the <span className="underline font-medium">Terms & Conditions</span> and <span className="underline font-medium">Privacy Policy</span> of Brokenshire Hotel. I understand that my booking is subject to availability and hotel policies.
+                            </span>
+                          </label>
                         </div>
                       </div>
                     </motion.div>
@@ -475,9 +522,15 @@ export default function SearchRooms() {
                   <div />
                 )}
                 
-                {bookingStep < 3 ? (
+                {bookingStep < 5 ? (
                   <button 
-                    onClick={() => setBookingStep(prev => prev + 1)}
+                    onClick={() => {
+                      if (bookingStep === 2 && (!dates.checkIn || !dates.checkOut || pricing.nights <= 0)) {
+                        showToast("Please select valid check-in and check-out dates", "error");
+                        return;
+                      }
+                      setBookingStep(prev => prev + 1);
+                    }}
                     className="px-8 py-3 rounded-xl bg-forest-700 text-white hover:bg-forest-800 transition-colors flex items-center gap-2 font-medium"
                   >
                     Next Step
@@ -486,8 +539,8 @@ export default function SearchRooms() {
                 ) : (
                   <button 
                     onClick={handleConfirmBooking}
-                    disabled={isBooking}
-                    className="px-8 py-3 rounded-xl bg-forest-700 text-white hover:bg-forest-800 transition-colors flex items-center gap-2 font-medium disabled:opacity-50"
+                    disabled={isBooking || !acceptedTerms}
+                    className="px-8 py-3 rounded-xl bg-forest-700 text-white hover:bg-forest-800 transition-colors flex items-center gap-2 font-medium disabled:opacity-50 shadow-lg shadow-forest-900/20"
                   >
                     {isBooking ? (
                       <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
