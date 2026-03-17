@@ -6,24 +6,24 @@ const rooms = [
     id: 1,
     name: 'Forest View Suite',
     description: 'Wake up to the serene sounds of nature in our spacious suite featuring panoramic forest views and a private balcony.',
-    price: 250,
-    image: 'https://picsum.photos/seed/forest-room/800/600',
+    price: 1250,
+    image: 'src/imgs/istockphoto-157423413-612x612.jpg',
     amenities: ['King Bed', '2 Guests', 'Free Wi-Fi', 'Breakfast'],
   },
   {
     id: 2,
     name: 'Garden Retreat',
     description: 'A cozy and elegant room nestled by our botanical gardens, perfect for a peaceful getaway with direct garden access.',
-    price: 180,
-    image: 'https://picsum.photos/seed/garden-room/800/600',
+    price: 2480,
+    image: 'src/imgs/garden-retreat.jpg',
     amenities: ['Queen Bed', '2 Guests', 'Free Wi-Fi', 'Breakfast'],
   },
   {
     id: 3,
     name: 'Canopy Family Villa',
     description: 'Ideal for families, this expansive villa offers multiple bedrooms, a private lounge, and stunning views of the tree canopy.',
-    price: 450,
-    image: 'https://picsum.photos/seed/family-villa/800/600',
+    price: 4450,
+    image: 'src/imgs/canopy.jpg',
     amenities: ['2 King Beds', '4 Guests', 'Free Wi-Fi', 'Breakfast'],
   },
 ];
@@ -80,7 +80,7 @@ export default function Rooms() {
                   referrerPolicy="no-referrer"
                 />
                 <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full shadow-sm">
-                  <span className="font-serif font-semibold text-forest-900">${room.price}</span>
+                  <span className="font-serif font-semibold text-forest-900">₱{room.price}</span>
                   <span className="text-xs text-forest-700/70 uppercase tracking-wider ml-1">/ night</span>
                 </div>
               </div>

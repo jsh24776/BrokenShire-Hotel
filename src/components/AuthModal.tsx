@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Mail, Lock, User, ArrowRight, Shield } from 'lucide-react';
+import axios from 'axios';
+import { api } from '../lib/api';
+import { setAuth } from '../lib/auth';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -11,8 +14,11 @@ interface AuthModalProps {
 export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
   const [authMode, setAuthMode] = useState<'login' | 'signup' | 'admin' | 'forgot_password'>('login');
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [passwordConfirmation, setPasswordConfirmation] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [resetSent, setResetSent] = useState(false);
@@ -22,14 +28,17 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
     if (isOpen) {
       setError('');
       setName('');
+      setPhone('');
+      setAddress('');
       setEmail('');
       setPassword('');
+      setPasswordConfirmation('');
       setAuthMode('login');
       setResetSent(false);
     }
   }, [isOpen]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -46,26 +55,61 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
       return;
     }
 
-    if (!email || !password || (authMode === 'signup' && !name)) {
+    if (
+      !email ||
+      !password ||
+      (authMode === 'signup' && (!name || !phone || !address || !passwordConfirmation))
+    ) {
       setError('Please fill in all required fields.');
       return;
     }
 
     setIsLoading(true);
 
-    // Simulate API call for frontend-only functionality
-    setTimeout(() => {
-      setIsLoading(false);
-      
+    try {
       if (authMode === 'admin') {
-        // Admin login accepts any credentials for frontend demo
-        onLogin({ name: 'Admin User', role: 'admin' });
-      } else {
-        // Use the provided name for registration, or extract from email for login
-        const userName = authMode === 'login' ? email.split('@')[0] : name;
-        onLogin({ name: userName, role: 'user' });
+        const res = await api.post('/admin/login', { email, password });
+        setAuth(res.data.token, 'admin');
+        onLogin({ name: res.data.admin?.name ?? 'Admin', role: 'admin' });
+        return;
       }
-    }, 800);
+
+      if (authMode === 'signup') {
+        if (password !== passwordConfirmation) {
+          setError('Passwords do not match.');
+          return;
+        }
+
+        const res = await api.post('/register', {
+          name,
+          email,
+          phone,
+          address,
+          password,
+          password_confirmation: passwordConfirmation,
+        });
+
+        setAuth(res.data.token, 'user');
+        onLogin({ name: res.data.user?.name ?? name, role: 'user' });
+        return;
+      }
+
+      const res = await api.post('/login', { email, password });
+      setAuth(res.data.token, 'user');
+      onLogin({ name: res.data.user?.name ?? email.split('@')[0], role: 'user' });
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        const message =
+          (err.response?.data as any)?.message ??
+          Object.values(((err.response?.data as any)?.errors ?? {}) as Record<string, string[]>)[0]?.[0] ??
+          'Authentication failed.';
+        setError(String(message));
+      } else {
+        setError('Authentication failed.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const getHeaderText = () => {
@@ -155,16 +199,46 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
                           exit={{ opacity: 0, height: 0 }}
                           className="space-y-1 overflow-hidden"
                         >
-                          <label className="text-sm font-medium text-forest-800 ml-1">Full Name</label>
-                          <div className="relative">
-                            <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-forest-800/40" />
-                            <input
-                              type="text"
-                              value={name}
-                              onChange={(e) => setName(e.target.value)}
-                              placeholder="John Doe"
-                              className="w-full pl-10 pr-4 py-3 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all"
-                            />
+                          <div className="space-y-5 pt-1">
+                            <div className="space-y-1">
+                              <label className="text-sm font-medium text-forest-800 ml-1">Full Name</label>
+                              <div className="relative">
+                                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-forest-800/40" />
+                                <input
+                                  type="text"
+                                  value={name}
+                                  onChange={(e) => setName(e.target.value)}
+                                  placeholder="John Doe"
+                                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-sm font-medium text-forest-800 ml-1">Phone Number</label>
+                              <div className="relative">
+                                <input
+                                  type="tel"
+                                  value={phone}
+                                  onChange={(e) => setPhone(e.target.value)}
+                                  placeholder="0917 000 0000"
+                                  className="w-full px-4 py-3 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-sm font-medium text-forest-800 ml-1">Home Address</label>
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  value={address}
+                                  onChange={(e) => setAddress(e.target.value)}
+                                  placeholder="123 Nature Lane, Forest City"
+                                  className="w-full px-4 py-3 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all"
+                                />
+                              </div>
+                            </div>
                           </div>
                         </motion.div>
                       )}
@@ -208,6 +282,22 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             placeholder="••••••••"
+                            className="w-full pl-10 pr-4 py-3 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {authMode === 'signup' && (
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium text-forest-800 ml-1">Confirm Password</label>
+                        <div className="relative">
+                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-forest-800/40" />
+                          <input
+                            type="password"
+                            value={passwordConfirmation}
+                            onChange={(e) => setPasswordConfirmation(e.target.value)}
+                            placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                             className="w-full pl-10 pr-4 py-3 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all"
                           />
                         </div>

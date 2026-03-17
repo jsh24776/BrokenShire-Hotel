@@ -1,72 +1,120 @@
-import { useState } from 'react';
-import { Calendar, Clock, MapPin, MoreVertical, XCircle, CheckCircle, X, Info, ShieldCheck } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import axios from 'axios';
+import { Calendar, ShieldCheck, XCircle, CheckCircle, X } from 'lucide-react';
 import { useToast } from '../components/ToastContext';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
+import { api } from '../lib/api';
 
-const bookings = [
-  {
-    id: 'RES-49201',
-    room: 'Forest Suite',
-    checkIn: '2023-11-15',
-    checkOut: '2023-11-18',
-    status: 'Confirmed',
-    amount: '$750.00',
-    guests: 2,
-    image: 'https://images.unsplash.com/photo-1510798831971-661eb04b3739?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80'
-  },
-  {
-    id: 'RES-38102',
-    room: 'Garden Retreat',
-    checkIn: '2023-08-10',
-    checkOut: '2023-08-12',
-    status: 'Checked-out',
-    amount: '$360.00',
-    guests: 2,
-    image: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80'
-  },
-  {
-    id: 'RES-29011',
-    room: 'Canopy Villa',
-    checkIn: '2023-05-01',
-    checkOut: '2023-05-05',
-    status: 'Cancelled',
-    amount: '$1800.00',
-    guests: 4,
-    image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80'
+type Booking = {
+  id: number;
+  reference: string;
+  room_number: string;
+  room_name: string;
+  room_type: string;
+  image_url: string | null;
+  check_in_date: string;
+  check_out_date: string;
+  nights: number;
+  amount_cents: number;
+  currency: string;
+  payment_status: string;
+  status: string;
+  created_at: string | null;
+};
+
+function formatMoney(cents: number, currency: string) {
+  const value = (cents ?? 0) / 100;
+  try {
+    return new Intl.NumberFormat('en-PH', { style: 'currency', currency }).format(value);
+  } catch {
+    return `₱${value.toLocaleString()}`;
   }
-];
+}
+
+function titleCase(s: string) {
+  return String(s)
+    .replace(/_/g, ' ')
+    .split(' ')
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+}
 
 export default function MyBookings() {
   const { showToast } = useToast();
+
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past' | 'cancelled'>('upcoming');
-  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [bookingToCancel, setBookingToCancel] = useState<Booking | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
 
-  const selectedBooking = bookings.find(b => b.id === selectedBookingId);
-
-  const handleCancelBooking = async (id: string) => {
-    if (!window.confirm("Are you sure you want to cancel this booking?")) return;
-    
-    setIsCancelling(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    showToast(`Booking ${id} has been cancelled.`, "success");
-    setIsCancelling(false);
+  const fetchBookings = async (signal?: AbortSignal) => {
+    setError(null);
+    const res = await api.get('/bookings', { signal });
+    setBookings(Array.isArray(res.data?.bookings) ? res.data.bookings : []);
   };
 
-  const filteredBookings = bookings.filter(booking => {
-    if (activeTab === 'upcoming') return booking.status === 'Confirmed' || booking.status === 'Pending';
-    if (activeTab === 'past') return booking.status === 'Checked-out';
-    if (activeTab === 'cancelled') return booking.status === 'Cancelled';
-    return true;
-  });
+  useEffect(() => {
+    const controller = new AbortController();
+    setIsLoading(true);
+
+    (async () => {
+      try {
+        await fetchBookings(controller.signal);
+      } catch (err) {
+        if (axios.isAxiosError(err) && err.code === 'ERR_CANCELED') return;
+        const message =
+          (axios.isAxiosError(err) ? (err.response?.data as any)?.message : null) ??
+          'Failed to load your bookings.';
+        setError(String(message));
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+
+    return () => controller.abort();
+  }, []);
+
+  const filteredBookings = useMemo(() => {
+    if (activeTab === 'upcoming') return bookings.filter((b) => b.status === 'confirmed' || b.status === 'pending');
+    if (activeTab === 'past') return bookings.filter((b) => b.status === 'checked_out');
+    if (activeTab === 'cancelled') return bookings.filter((b) => b.status === 'cancelled');
+    return bookings;
+  }, [activeTab, bookings]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'Confirmed': return 'bg-emerald-100 text-emerald-800';
-      case 'Pending': return 'bg-amber-100 text-amber-800';
-      case 'Checked-out': return 'bg-slate-100 text-slate-800';
-      case 'Cancelled': return 'bg-red-100 text-red-800';
-      default: return 'bg-earth-100 text-earth-800';
+      case 'confirmed':
+        return 'bg-emerald-100 text-emerald-800';
+      case 'pending':
+        return 'bg-amber-100 text-amber-800';
+      case 'checked_out':
+        return 'bg-slate-100 text-slate-800';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-earth-100 text-earth-800';
+    }
+  };
+
+  const cancelBooking = async (booking: Booking) => {
+    setIsCancelling(true);
+    try {
+      await api.patch(`/bookings/${booking.id}/cancel`);
+      showToast(`Booking ${booking.reference} has been cancelled.`, 'success');
+      await fetchBookings();
+      setSelectedBooking(null);
+    } catch (err) {
+      const message =
+        (axios.isAxiosError(err) ? (err.response?.data as any)?.message : null) ??
+        'Failed to cancel booking.';
+      showToast(String(message), 'error');
+    } finally {
+      setIsCancelling(false);
     }
   };
 
@@ -77,94 +125,101 @@ export default function MyBookings() {
         <p className="text-forest-700/70 mt-1">Manage your upcoming stays and view past reservations.</p>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-2 border-b border-earth-200">
-        <button 
+        <button
           onClick={() => setActiveTab('upcoming')}
-          className={`pb-3 px-4 text-sm font-medium transition-colors relative ${activeTab === 'upcoming' ? 'text-forest-900' : 'text-forest-700/50 hover:text-forest-700'}`}
+          className={`pb-3 px-4 text-sm font-medium transition-colors relative ${
+            activeTab === 'upcoming' ? 'text-forest-900' : 'text-forest-700/50 hover:text-forest-700'
+          }`}
         >
           Upcoming
           {activeTab === 'upcoming' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-forest-700 rounded-t-full" />}
         </button>
-        <button 
+        <button
           onClick={() => setActiveTab('past')}
-          className={`pb-3 px-4 text-sm font-medium transition-colors relative ${activeTab === 'past' ? 'text-forest-900' : 'text-forest-700/50 hover:text-forest-700'}`}
+          className={`pb-3 px-4 text-sm font-medium transition-colors relative ${
+            activeTab === 'past' ? 'text-forest-900' : 'text-forest-700/50 hover:text-forest-700'
+          }`}
         >
           Past Stays
           {activeTab === 'past' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-forest-700 rounded-t-full" />}
         </button>
-        <button 
+        <button
           onClick={() => setActiveTab('cancelled')}
-          className={`pb-3 px-4 text-sm font-medium transition-colors relative ${activeTab === 'cancelled' ? 'text-forest-900' : 'text-forest-700/50 hover:text-forest-700'}`}
+          className={`pb-3 px-4 text-sm font-medium transition-colors relative ${
+            activeTab === 'cancelled' ? 'text-forest-900' : 'text-forest-700/50 hover:text-forest-700'
+          }`}
         >
           Cancelled
           {activeTab === 'cancelled' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-forest-700 rounded-t-full" />}
         </button>
       </div>
 
-      {/* Booking List */}
       <div className="space-y-4">
-        {filteredBookings.length > 0 ? (
+        {isLoading ? (
+          <div className="bg-white rounded-2xl shadow-sm border border-earth-100 p-12 text-center text-forest-700/70">
+            Loading your bookings...
+          </div>
+        ) : error ? (
+          <div className="bg-white rounded-2xl shadow-sm border border-earth-100 p-12 text-center text-red-600">{error}</div>
+        ) : filteredBookings.length > 0 ? (
           filteredBookings.map((booking) => (
-            <div key={booking.id} className="bg-white rounded-2xl shadow-sm border border-earth-100 overflow-hidden flex flex-col sm:flex-row hover:shadow-md transition-shadow">
+            <div
+              key={booking.id}
+              className="bg-white rounded-2xl shadow-sm border border-earth-100 overflow-hidden flex flex-col sm:flex-row hover:shadow-md transition-shadow"
+            >
               <div className="sm:w-48 h-48 sm:h-auto shrink-0">
-                <img 
-                  src={booking.image} 
-                  alt={booking.room} 
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
+                {booking.image_url ? (
+                  <img
+                    src={booking.image_url}
+                    alt={booking.room_name}
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-earth-50" />
+                )}
               </div>
               <div className="p-6 flex-1 flex flex-col justify-between">
-                <div>
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h3 className="text-xl font-serif font-semibold text-forest-900">{booking.room}</h3>
-                      <p className="text-forest-700/70 text-sm">Reservation #{booking.id}</p>
-                    </div>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(booking.status)}`}>
-                      {booking.status}
-                    </span>
+                <div className="flex justify-between items-start gap-4">
+                  <div>
+                    <h3 className="text-lg font-serif font-semibold text-forest-900">{booking.room_name}</h3>
+                    <p className="text-sm text-forest-700/60">Reservation #{booking.reference}</p>
                   </div>
-                  
-                  <div className="flex flex-wrap gap-y-3 gap-x-6 text-sm mt-4">
-                    <div className="flex items-center gap-2 text-forest-800">
-                      <Calendar className="w-4 h-4 text-forest-700/50" />
-                      <span>{booking.checkIn} to {booking.checkOut}</span>
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(booking.status)}`}>
+                    {titleCase(booking.status)}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-sm text-forest-700/70">
+                      <Calendar className="w-4 h-4" />
+                      {booking.check_in_date} → {booking.check_out_date}
                     </div>
-                    <div className="flex items-center gap-2 text-forest-800">
-                      <Clock className="w-4 h-4 text-forest-700/50" />
-                      <span>2 Nights</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-forest-800">
-                      <MapPin className="w-4 h-4 text-forest-700/50" />
-                      <span>{booking.guests} Guests</span>
-                    </div>
+                    <div className="text-xs text-forest-700/60">{booking.nights} nights</div>
+                  </div>
+                  <div className="space-y-1 text-sm sm:text-right">
+                    <div className="text-forest-700/70">Total</div>
+                    <div className="font-semibold text-forest-900">{formatMoney(booking.amount_cents, booking.currency)}</div>
                   </div>
                 </div>
-                
-                <div className="mt-6 pt-4 border-t border-earth-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div>
-                    <p className="text-xs text-forest-700/50">Total Amount</p>
-                    <p className="font-semibold text-forest-900">{booking.amount}</p>
-                  </div>
-                  <div className="flex gap-2 w-full sm:w-auto">
-                    {booking.status === 'Confirmed' && (
-                      <button 
-                        onClick={() => handleCancelBooking(booking.id)}
-                        disabled={isCancelling}
-                        className="flex-1 sm:flex-none px-4 py-2 border border-red-200 text-red-600 hover:bg-red-50 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                      >
-                        <XCircle className="w-4 h-4" /> Cancel
-                      </button>
-                    )}
-                    <button 
-                      onClick={() => setSelectedBookingId(booking.id)}
-                      className="flex-1 sm:flex-none px-4 py-2 bg-forest-50 text-forest-800 hover:bg-forest-100 rounded-xl text-sm font-medium transition-colors"
+
+                <div className="mt-6 flex items-center gap-3">
+                  <button
+                    onClick={() => setSelectedBooking(booking)}
+                    className="px-4 py-2 bg-forest-50 text-forest-800 hover:bg-forest-100 rounded-xl text-sm font-medium transition-colors"
+                  >
+                    View Details
+                  </button>
+                  {(booking.status === 'pending' || booking.status === 'confirmed') && (
+                    <button
+                      onClick={() => setBookingToCancel(booking)}
+                      className="px-4 py-2 bg-red-50 text-red-700 hover:bg-red-100 rounded-xl text-sm font-medium transition-colors"
                     >
-                      View Details
+                      Cancel Booking
                     </button>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -179,18 +234,18 @@ export default function MyBookings() {
           </div>
         )}
       </div>
-      {/* Booking Details Modal */}
+
       <AnimatePresence>
-        {selectedBookingId && (
+        {selectedBooking && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setSelectedBookingId(null)}
+              onClick={() => setSelectedBooking(null)}
               className="absolute inset-0 bg-forest-900/40 backdrop-blur-sm"
             />
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -198,19 +253,28 @@ export default function MyBookings() {
             >
               <div className="p-6 border-b border-earth-100 flex justify-between items-center bg-earth-50/50">
                 <h2 className="text-xl font-serif font-semibold text-forest-900">Booking Details</h2>
-                <button onClick={() => setSelectedBookingId(null)} className="p-2 hover:bg-earth-100 rounded-full transition-colors">
+                <button onClick={() => setSelectedBooking(null)} className="p-2 hover:bg-earth-100 rounded-full transition-colors">
                   <X className="w-5 h-5 text-forest-800/50" />
                 </button>
               </div>
-              
+
               <div className="p-8 space-y-6">
                 <div className="flex gap-4 items-start">
-                  <img src={selectedBooking?.image} alt={selectedBooking?.room} className="w-24 h-24 rounded-2xl object-cover" referrerPolicy="no-referrer" />
+                  {selectedBooking.image_url ? (
+                    <img
+                      src={selectedBooking.image_url}
+                      alt={selectedBooking.room_name}
+                      className="w-24 h-24 rounded-2xl object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="w-24 h-24 rounded-2xl bg-earth-50" />
+                  )}
                   <div>
-                    <h3 className="text-lg font-serif font-semibold text-forest-900">{selectedBooking?.room}</h3>
-                    <p className="text-sm text-forest-700/60">Reservation #{selectedBooking?.id}</p>
-                    <span className={`mt-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(selectedBooking?.status || '')}`}>
-                      {selectedBooking?.status}
+                    <h3 className="text-lg font-serif font-semibold text-forest-900">{selectedBooking.room_name}</h3>
+                    <p className="text-sm text-forest-700/60">Reservation #{selectedBooking.reference}</p>
+                    <span className={`mt-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(selectedBooking.status)}`}>
+                      {titleCase(selectedBooking.status)}
                     </span>
                   </div>
                 </div>
@@ -218,24 +282,28 @@ export default function MyBookings() {
                 <div className="grid grid-cols-2 gap-6 py-6 border-y border-earth-100">
                   <div className="space-y-1">
                     <p className="text-xs text-forest-700/50 uppercase tracking-wider">Check-in</p>
-                    <p className="font-medium text-forest-900">{selectedBooking?.checkIn}</p>
+                    <p className="font-medium text-forest-900">{selectedBooking.check_in_date}</p>
                     <p className="text-xs text-forest-700/60">After 2:00 PM</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-xs text-forest-700/50 uppercase tracking-wider">Check-out</p>
-                    <p className="font-medium text-forest-900">{selectedBooking?.checkOut}</p>
+                    <p className="font-medium text-forest-900">{selectedBooking.check_out_date}</p>
                     <p className="text-xs text-forest-700/60">Before 11:00 AM</p>
                   </div>
                 </div>
 
                 <div className="space-y-3">
                   <div className="flex justify-between text-sm">
-                    <span className="text-forest-700/70">Guests</span>
-                    <span className="font-medium text-forest-900">{selectedBooking?.guests} Adults</span>
+                    <span className="text-forest-700/70">Nights</span>
+                    <span className="font-medium text-forest-900">{selectedBooking.nights}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-forest-700/70">Total Amount</span>
-                    <span className="font-semibold text-forest-900">{selectedBooking?.amount}</span>
+                    <span className="font-semibold text-forest-900">{formatMoney(selectedBooking.amount_cents, selectedBooking.currency)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-forest-700/70">Payment</span>
+                    <span className="font-medium text-forest-900">{titleCase(selectedBooking.payment_status)}</span>
                   </div>
                 </div>
 
@@ -244,6 +312,72 @@ export default function MyBookings() {
                   <p className="text-xs text-forest-800/80 leading-relaxed">
                     This booking is protected by our Nature Retreat Guarantee. Need help? Contact our 24/7 concierge.
                   </p>
+                </div>
+
+                {(selectedBooking.status === 'pending' || selectedBooking.status === 'confirmed') && (
+                  <button
+                    onClick={() => setBookingToCancel(selectedBooking)}
+                    className="w-full px-4 py-3 bg-red-50 text-red-700 hover:bg-red-100 rounded-xl text-sm font-medium transition-colors"
+                  >
+                    Cancel Booking
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {bookingToCancel && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setBookingToCancel(null)}
+              className="absolute inset-0 bg-forest-900/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.98, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.98, y: 10 }}
+              className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden relative z-10 border border-earth-100"
+            >
+              <div className="p-6 border-b border-earth-100 bg-earth-50/50 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-red-50 text-red-700 flex items-center justify-center border border-red-100">
+                    <XCircle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-forest-900">Confirm Cancel</div>
+                    <div className="text-xs text-forest-700/60">{bookingToCancel.reference}</div>
+                  </div>
+                </div>
+                <button onClick={() => setBookingToCancel(null)} className="p-2 hover:bg-earth-100 rounded-full transition-colors">
+                  <X className="w-5 h-5 text-forest-800/50" />
+                </button>
+              </div>
+              <div className="p-6">
+                <p className="text-sm text-forest-800">Do you really want to cancel this booking?</p>
+                <div className="mt-6 flex items-center justify-end gap-3">
+                  <button
+                    onClick={() => setBookingToCancel(null)}
+                    className="px-4 py-2 rounded-xl border border-earth-200 hover:bg-earth-50 text-forest-800"
+                  >
+                    No
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const b = bookingToCancel;
+                      setBookingToCancel(null);
+                      await cancelBooking(b);
+                    }}
+                    disabled={isCancelling}
+                    className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-medium disabled:opacity-60"
+                  >
+                    {isCancelling ? 'Cancelling...' : 'Yes, cancel'}
+                  </button>
                 </div>
               </div>
             </motion.div>

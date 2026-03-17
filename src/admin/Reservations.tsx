@@ -1,115 +1,321 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Search, Plus, Filter, MoreVertical, Edit, Trash2, CheckCircle, X, Calendar, Users, Home, CreditCard, DollarSign, Info, UserPlus, ArrowRight, Tag } from 'lucide-react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
+import axios from 'axios';
+import {
+  AlertTriangle,
+  Calendar,
+  CheckCircle,
+  Edit,
+  Filter,
+  MoreVertical,
+  Plus,
+  Search,
+  Users,
+  X,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useToast } from '../components/ToastContext';
-import { useNavigate } from 'react-router-dom';
+import { api } from '../lib/api';
 
-const initialReservations = [
-  { id: 'RES-001', guest: 'Sarah Jenkins', room: '101', type: 'Forest Suite', checkIn: '2023-10-25', checkOut: '2023-10-28', status: 'Confirmed', amount: '$750' },
-  { id: 'RES-002', guest: 'Michael Chen', room: '204', type: 'Garden Retreat', checkIn: '2023-10-25', checkOut: '2023-10-27', status: 'Pending', amount: '$360' },
-  { id: 'RES-003', guest: 'Emily Davis', room: '305', type: 'Canopy Villa', checkIn: '2023-10-26', checkOut: '2023-10-30', status: 'Confirmed', amount: '$1800' },
-  { id: 'RES-004', guest: 'Robert Wilson', room: '102', type: 'Forest Suite', checkIn: '2023-10-22', checkOut: '2023-10-25', status: 'Checked Out', amount: '$750' },
-  { id: 'RES-005', guest: 'Amanda Taylor', room: '205', type: 'Garden Retreat', checkIn: '2023-10-28', checkOut: '2023-11-02', status: 'Cancelled', amount: '$900' },
-];
+type Guest = {
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  created_at: string;
+};
 
-const ROOM_TYPES = [
-  { id: 'forest', name: 'Forest Suite', rate: 250 },
-  { id: 'garden', name: 'Garden Retreat', rate: 180 },
-  { id: 'canopy', name: 'Canopy Villa', rate: 450 },
-];
+type Room = {
+  room_number: string;
+  type: string;
+  base_rate_cents: number;
+  currency: string;
+  archived_at: string | null;
+};
 
-const EXISTING_GUESTS = [
-  { id: 'G-101', name: 'Sarah Jenkins' },
-  { id: 'G-102', name: 'Michael Chen' },
-  { id: 'G-103', name: 'Emily Davis' },
-  { id: 'G-104', name: 'Robert Wilson' },
-  { id: 'G-105', name: 'Amanda Taylor' },
-];
+type Reservation = {
+  id: number;
+  user_id: number;
+  user?: { id: number; name: string; email: string };
+  room_number: string;
+  room_type: string;
+  check_in_date: string;
+  check_out_date: string;
+  nights: number;
+  amount_cents: number;
+  currency: string;
+  payment_status: string;
+  status: string;
+  created_at: string;
+};
+
+type ModalMode = 'add' | 'edit';
+
+function formatMoney(cents: number, currency: string) {
+  const value = (cents ?? 0) / 100;
+  try {
+    return new Intl.NumberFormat('en-PH', { style: 'currency', currency }).format(value);
+  } catch {
+    return `₱${value.toLocaleString()}`;
+  }
+}
+
+function titleCase(s: string) {
+  return String(s)
+    .replace(/_/g, ' ')
+    .split(' ')
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+}
+
+function toDateOnly(value: string) {
+  if (!value) return '';
+  return String(value).split('T')[0];
+}
 
 export default function Reservations() {
   const { showToast } = useToast();
-  const navigate = useNavigate();
+
   const [searchTerm, setSearchTerm] = useState('');
-  const [reservations, setReservations] = useState(initialReservations);
-  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [page, setPage] = useState(1);
+  const [lastPage, setLastPage] = useState(1);
+
+  const [rooms, setRooms] = useState<Room[]>([]);
+
+  const [showModal, setShowModal] = useState(false);
+  const [modalMode, setModalMode] = useState<ModalMode>('add');
+  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Form State
-  const [formData, setFormData] = useState({
-    guestSearch: '',
-    selectedGuest: null as { id: string, name: string } | null,
-    roomType: 'forest',
-    roomNumber: '101',
-    checkIn: '',
-    checkOut: '',
-    numGuests: 1,
-    bookingSource: 'Walk-in',
-    specialRequests: '',
-    paymentMethod: 'Cash',
-    paymentStatus: 'Pending'
+  const [guestSearch, setGuestSearch] = useState('');
+  const [guestResults, setGuestResults] = useState<Guest[]>([]);
+  const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
+
+  const [form, setForm] = useState({
+    room_number: '',
+    check_in_date: '',
+    check_out_date: '',
+    status: 'pending',
+    payment_status: 'unpaid',
   });
 
-  const [guestSearchResults, setGuestSearchResults] = useState<typeof EXISTING_GUESTS>([]);
+  const [reservationToCancel, setReservationToCancel] = useState<Reservation | null>(null);
 
-  useEffect(() => {
-    if (formData.guestSearch.length > 1) {
-      const results = EXISTING_GUESTS.filter(g => 
-        g.name.toLowerCase().includes(formData.guestSearch.toLowerCase()) || 
-        g.id.toLowerCase().includes(formData.guestSearch.toLowerCase())
-      );
-      setGuestSearchResults(results);
-    } else {
-      setGuestSearchResults([]);
-    }
-  }, [formData.guestSearch]);
+  const selectedRoom = useMemo(
+    () => rooms.find((r) => r.room_number === form.room_number) ?? null,
+    [rooms, form.room_number]
+  );
 
-  const numNights = useMemo(() => {
-    if (!formData.checkIn || !formData.checkOut) return 0;
-    const start = new Date(formData.checkIn);
-    const end = new Date(formData.checkOut);
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays > 0 ? diffDays : 0;
-  }, [formData.checkIn, formData.checkOut]);
+  const nights = useMemo(() => {
+    if (!form.check_in_date || !form.check_out_date) return 0;
+    const start = new Date(toDateOnly(form.check_in_date));
+    const end = new Date(toDateOnly(form.check_out_date));
+    const diff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    return diff > 0 ? diff : 0;
+  }, [form.check_in_date, form.check_out_date]);
 
-  const totalAmount = useMemo(() => {
-    const room = ROOM_TYPES.find(r => r.id === formData.roomType);
-    return (room?.rate || 0) * numNights;
-  }, [formData.roomType, numNights]);
-
-  const handleNewBooking = async () => {
-    if (!formData.selectedGuest) {
-      showToast("Please select a guest first", "error");
-      return;
-    }
-    setIsSaving(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    showToast("New booking created successfully!", "success");
-    setIsSaving(false);
-    setShowBookingModal(false);
-    // Reset form
-    setFormData({
-      guestSearch: '',
-      selectedGuest: null,
-      roomType: 'forest',
-      roomNumber: '101',
-      checkIn: '',
-      checkOut: '',
-      numGuests: 1,
-      bookingSource: 'Walk-in',
-      specialRequests: '',
-      paymentMethod: 'Cash',
-      paymentStatus: 'Pending'
-    });
-  };
+  const totalAmountCents = useMemo(() => {
+    if (!selectedRoom || nights <= 0) return 0;
+    return selectedRoom.base_rate_cents * nights;
+  }, [selectedRoom, nights]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'Confirmed': return 'bg-emerald-100 text-emerald-800';
-      case 'Pending': return 'bg-amber-100 text-amber-800';
-      case 'Checked Out': return 'bg-slate-100 text-slate-800';
-      case 'Cancelled': return 'bg-red-100 text-red-800';
-      default: return 'bg-earth-100 text-earth-800';
+      case 'confirmed':
+        return 'bg-emerald-100 text-emerald-800';
+      case 'pending':
+        return 'bg-amber-100 text-amber-800';
+      case 'checked_out':
+        return 'bg-slate-100 text-slate-800';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-earth-100 text-earth-800';
+    }
+  };
+
+  const fetchRooms = async (signal?: AbortSignal) => {
+    const res = await api.get('/admin/rooms', {
+      params: { per_page: 200, include_archived: 0 },
+      signal,
+    });
+    const data = Array.isArray(res.data) ? res.data : (res.data?.data ?? []);
+    setRooms(data);
+  };
+
+  const fetchReservations = async (signal?: AbortSignal) => {
+    setError(null);
+    const res = await api.get('/admin/reservations', {
+      params: { search: searchTerm, per_page: 20, page },
+      signal,
+    });
+
+    const data = Array.isArray(res.data) ? res.data : (res.data?.data ?? []);
+    setReservations(data);
+
+    const meta = res.data?.meta;
+    if (meta?.last_page) setLastPage(meta.last_page);
+    if (meta?.current_page) setPage(meta.current_page);
+  };
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setIsLoading(true);
+
+    const timer = window.setTimeout(async () => {
+      try {
+        await Promise.all([fetchRooms(controller.signal), fetchReservations(controller.signal)]);
+      } catch (err) {
+        if (axios.isAxiosError(err) && err.code === 'ERR_CANCELED') return;
+        const message =
+          (axios.isAxiosError(err) ? (err.response?.data as any)?.message : null) ??
+          'Failed to load reservations.';
+        setError(String(message));
+      } finally {
+        setIsLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [searchTerm, page]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const timer = window.setTimeout(async () => {
+      const s = guestSearch.trim();
+      if (s.length < 2) {
+        setGuestResults([]);
+        return;
+      }
+      try {
+        const res = await api.get('/admin/guests', {
+          params: { search: s, per_page: 10 },
+          signal: controller.signal,
+        });
+        const data = Array.isArray(res.data) ? res.data : (res.data?.data ?? []);
+        setGuestResults(data);
+      } catch {
+        // ignore search errors
+      }
+    }, 250);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [guestSearch]);
+
+  const openNew = () => {
+    setModalMode('add');
+    setSelectedReservation(null);
+    setSelectedGuest(null);
+    setGuestSearch('');
+    setGuestResults([]);
+    const defaultRoom = rooms[0]?.room_number ?? '';
+    setForm({
+      room_number: defaultRoom,
+      check_in_date: '',
+      check_out_date: '',
+      status: 'pending',
+      payment_status: 'unpaid',
+    });
+    setShowModal(true);
+  };
+
+  const openEdit = (r: Reservation) => {
+    setModalMode('edit');
+    setSelectedReservation(r);
+    setSelectedGuest(null);
+    setGuestSearch(r.user?.name ?? '');
+    setGuestResults([]);
+    setForm({
+      room_number: r.room_number,
+      check_in_date: toDateOnly(r.check_in_date),
+      check_out_date: toDateOnly(r.check_out_date),
+      status: r.status,
+      payment_status: r.payment_status,
+    });
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setSelectedReservation(null);
+  };
+
+  const submitReservation = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (modalMode === 'add' && !selectedGuest) {
+      showToast('Please select a guest.', 'error');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      if (modalMode === 'add') {
+        await api.post('/admin/reservations', {
+          user_id: selectedGuest!.id,
+          room_number: form.room_number,
+          check_in_date: form.check_in_date,
+          check_out_date: form.check_out_date,
+          status: form.status,
+          payment_status: form.payment_status,
+        });
+        showToast('New booking created successfully!', 'success');
+      } else if (modalMode === 'edit' && selectedReservation) {
+        await api.put(`/admin/reservations/${selectedReservation.id}`, {
+          room_number: form.room_number,
+          check_in_date: form.check_in_date,
+          check_out_date: form.check_out_date,
+          status: form.status,
+          payment_status: form.payment_status,
+        });
+        showToast('Reservation updated.', 'success');
+      }
+
+      closeModal();
+      await fetchReservations();
+    } catch (err) {
+      const message =
+        (axios.isAxiosError(err) ? (err.response?.data as any)?.message : null) ??
+        Object.values(((axios.isAxiosError(err) ? (err.response?.data as any)?.errors : {}) ?? {}) as Record<
+          string,
+          string[]
+        >)[0]?.[0] ??
+        'Failed to save reservation.';
+      showToast(String(message), 'error');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const confirmReservation = async (r: Reservation) => {
+    try {
+      await api.patch(`/admin/reservations/${r.id}/confirm`);
+      showToast('Reservation confirmed.', 'success');
+      await fetchReservations();
+    } catch {
+      showToast('Failed to confirm reservation.', 'error');
+    }
+  };
+
+  const cancelReservation = async (r: Reservation) => {
+    try {
+      await api.patch(`/admin/reservations/${r.id}/cancel`);
+      showToast('Reservation cancelled.', 'success');
+      await fetchReservations();
+    } catch {
+      showToast('Failed to cancel reservation.', 'error');
     }
   };
 
@@ -118,10 +324,10 @@ export default function Reservations() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-serif font-semibold text-forest-900">Reservations</h1>
-          <p className="text-forest-700/70 mt-1">Manage all bookings and room assignments.</p>
+          <p className="text-forest-700/70 mt-1">Manage all bookings and room assignments (database-backed).</p>
         </div>
-        <button 
-          onClick={() => setShowBookingModal(true)}
+        <button
+          onClick={openNew}
           className="bg-forest-700 hover:bg-forest-800 text-white px-4 py-2 rounded-xl font-medium transition-colors flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
@@ -129,15 +335,17 @@ export default function Reservations() {
         </button>
       </div>
 
-      {/* Filters and Search */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-earth-100 flex flex-col sm:flex-row gap-4 justify-between">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-forest-800/40" />
           <input
             type="text"
-            placeholder="Search guests or reservation ID..."
+            placeholder="Search guest, email, room, type..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setPage(1);
+              setSearchTerm(e.target.value);
+            }}
             className="w-full pl-10 pr-4 py-2 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all"
           />
         </div>
@@ -149,335 +357,339 @@ export default function Reservations() {
         </div>
       </div>
 
-      {/* Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-earth-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse whitespace-nowrap">
-            <thead>
-              <tr className="bg-earth-50 text-forest-800 text-sm border-b border-earth-200">
-                <th className="p-4 font-medium">ID</th>
-                <th className="p-4 font-medium">Guest Name</th>
-                <th className="p-4 font-medium">Room</th>
-                <th className="p-4 font-medium">Check-in / Out</th>
-                <th className="p-4 font-medium">Amount</th>
-                <th className="p-4 font-medium">Status</th>
-                <th className="p-4 font-medium text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="text-sm text-forest-900">
-              {reservations.map((res) => (
-                <tr key={res.id} className="border-b border-earth-100 hover:bg-forest-50/50 transition-colors last:border-none">
-                  <td className="p-4 font-medium text-forest-700">{res.id}</td>
-                  <td className="p-4">{res.guest}</td>
-                  <td className="p-4">
-                    <div>{res.room}</div>
-                    <div className="text-xs text-forest-700/60">{res.type}</div>
-                  </td>
-                  <td className="p-4">
-                    <div>{res.checkIn}</div>
-                    <div className="text-xs text-forest-700/60">to {res.checkOut}</div>
-                  </td>
-                  <td className="p-4">{res.amount}</td>
-                  <td className="p-4">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(res.status)}`}>
-                      {res.status}
-                    </span>
-                  </td>
-                  <td className="p-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button className="p-1.5 text-forest-600 hover:bg-forest-50 rounded-lg transition-colors" title="Confirm">
-                        <CheckCircle className="w-4 h-4" />
-                      </button>
-                      <button className="p-1.5 text-earth-600 hover:bg-earth-50 rounded-lg transition-colors" title="Edit">
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Cancel">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                      <button className="p-1.5 text-forest-800 hover:bg-forest-50 rounded-lg transition-colors">
-                        <MoreVertical className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
+        {isLoading ? (
+          <div className="p-10 text-center text-forest-700/70">Loading reservations...</div>
+        ) : error ? (
+          <div className="p-10 text-center text-red-600">{error}</div>
+        ) : reservations.length === 0 ? (
+          <div className="p-10 text-center text-forest-700/70">No reservations found.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse whitespace-nowrap">
+              <thead>
+                <tr className="bg-earth-50 text-forest-800 text-sm border-b border-earth-200">
+                  <th className="p-4 font-medium">Reservation</th>
+                  <th className="p-4 font-medium">Guest</th>
+                  <th className="p-4 font-medium">Room</th>
+                  <th className="p-4 font-medium">Dates</th>
+                  <th className="p-4 font-medium">Amount</th>
+                  <th className="p-4 font-medium">Status</th>
+                  <th className="p-4 font-medium text-right">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        
-        {/* Pagination */}
+              </thead>
+              <tbody className="text-sm text-forest-900">
+                {reservations.map((r) => (
+                  <tr key={r.id} className="border-b border-earth-100 last:border-none hover:bg-forest-50/50">
+                    <td className="p-4 font-medium">RES-{String(r.id).padStart(4, '0')}</td>
+                    <td className="p-4">
+                      <div className="font-medium">{r.user?.name ?? `Guest #${r.user_id}`}</div>
+                      <div className="text-xs text-forest-700/60">{r.user?.email ?? ''}</div>
+                    </td>
+                    <td className="p-4">
+                      <div className="font-medium">{r.room_number}</div>
+                      <div className="text-xs text-forest-700/60">{r.room_type}</div>
+                    </td>
+                    <td className="p-4">
+                      <div>{toDateOnly(r.check_in_date)}</div>
+                      <div className="text-xs text-forest-700/60">to {toDateOnly(r.check_out_date)}</div>
+                    </td>
+                    <td className="p-4">{formatMoney(r.amount_cents, r.currency)}</td>
+                    <td className="p-4">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(r.status)}`}>
+                        {titleCase(r.status)}
+                      </span>
+                    </td>
+                    <td className="p-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => confirmReservation(r)}
+                          className="p-1.5 text-forest-600 hover:bg-forest-50 rounded-lg transition-colors"
+                          title="Confirm"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => openEdit(r)}
+                          className="p-1.5 text-earth-600 hover:bg-earth-50 rounded-lg transition-colors"
+                          title="Edit"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setReservationToCancel(r)}
+                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Cancel"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                        <button className="p-1.5 text-forest-800 hover:bg-forest-50 rounded-lg transition-colors" title="More">
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
         <div className="p-4 border-t border-earth-100 flex items-center justify-between text-sm text-forest-700/70">
-          <span>Showing 1 to 5 of 24 entries</span>
-          <div className="flex gap-1">
-            <button className="px-3 py-1 border border-earth-200 rounded-lg hover:bg-earth-50 disabled:opacity-50">Prev</button>
-            <button className="px-3 py-1 bg-forest-700 text-white rounded-lg">1</button>
-            <button className="px-3 py-1 border border-earth-200 rounded-lg hover:bg-earth-50">2</button>
-            <button className="px-3 py-1 border border-earth-200 rounded-lg hover:bg-earth-50">3</button>
-            <button className="px-3 py-1 border border-earth-200 rounded-lg hover:bg-earth-50">Next</button>
+          <span>Page {page} of {lastPage}</span>
+          <div className="flex gap-2">
+            <button
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="px-3 py-1 border border-earth-200 rounded-lg hover:bg-earth-50 disabled:opacity-50"
+            >
+              Prev
+            </button>
+            <button
+              disabled={page >= lastPage}
+              onClick={() => setPage((p) => Math.min(lastPage, p + 1))}
+              className="px-3 py-1 border border-earth-200 rounded-lg hover:bg-earth-50 disabled:opacity-50"
+            >
+              Next
+            </button>
           </div>
         </div>
       </div>
-      {/* New Booking Modal */}
+
       <AnimatePresence>
-        {showBookingModal && (
+        {showModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setShowBookingModal(false)}
+              onClick={closeModal}
               className="absolute inset-0 bg-forest-900/40 backdrop-blur-sm"
             />
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden relative z-10 max-h-[90vh] flex flex-col"
             >
               <div className="p-6 border-b border-earth-100 flex justify-between items-center bg-earth-50/50">
-                <h2 className="text-xl font-serif font-semibold text-forest-900">Create New Booking</h2>
-                <button onClick={() => setShowBookingModal(false)} className="p-2 hover:bg-earth-100 rounded-full transition-colors">
+                <h2 className="text-xl font-serif font-semibold text-forest-900">
+                  {modalMode === 'add' ? 'Create New Booking' : 'Edit Reservation'}
+                </h2>
+                <button onClick={closeModal} className="p-2 hover:bg-earth-100 rounded-full transition-colors">
                   <X className="w-5 h-5 text-forest-800/50" />
                 </button>
               </div>
-              
+
               <div className="p-8 space-y-8 overflow-y-auto">
-                {/* Guest Information */}
-                <div className="space-y-4">
-                  <h3 className="text-sm font-bold text-forest-900 uppercase tracking-widest flex items-center gap-2">
-                    <Users className="w-4 h-4" />
-                    Guest Information
-                  </h3>
-                  <div className="space-y-3">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-forest-400" />
-                      <input 
-                        type="text" 
-                        placeholder="Search existing guest by name or ID..." 
-                        value={formData.guestSearch}
-                        onChange={(e) => setFormData({ ...formData, guestSearch: e.target.value })}
-                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 outline-none" 
-                      />
-                      {guestSearchResults.length > 0 && (
-                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-earth-200 rounded-xl shadow-lg z-20 overflow-hidden">
-                          {guestSearchResults.map(guest => (
-                            <button
-                              key={guest.id}
-                              onClick={() => setFormData({ ...formData, selectedGuest: guest, guestSearch: guest.name, guestSearchResults: [] } as any)}
-                              className="w-full text-left px-4 py-2 hover:bg-forest-50 transition-colors flex items-center justify-between"
-                            >
-                              <span className="font-medium text-forest-900">{guest.name}</span>
-                              <span className="text-xs text-forest-700/50">{guest.id}</span>
-                            </button>
-                          ))}
+                <form onSubmit={submitReservation} className="space-y-8">
+                  {modalMode === 'add' && (
+                    <div className="space-y-4">
+                      <h3 className="text-sm font-bold text-forest-900 uppercase tracking-widest flex items-center gap-2">
+                        <Users className="w-4 h-4" />
+                        Guest
+                      </h3>
+                      <div className="space-y-3">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-forest-400" />
+                          <input
+                            type="text"
+                            placeholder="Search guest by name or email..."
+                            value={guestSearch}
+                            onChange={(e) => {
+                              setGuestSearch(e.target.value);
+                              setSelectedGuest(null);
+                            }}
+                            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 outline-none"
+                          />
+
+                          {guestResults.length > 0 && !selectedGuest && (
+                            <div className="absolute left-0 right-0 mt-2 bg-white rounded-xl border border-earth-200 shadow-lg overflow-hidden z-10">
+                              {guestResults.map((g) => (
+                                <button
+                                  type="button"
+                                  key={g.id}
+                                  onClick={() => {
+                                    setSelectedGuest(g);
+                                    setGuestSearch(g.name);
+                                    setGuestResults([]);
+                                  }}
+                                  className="w-full text-left px-4 py-3 hover:bg-earth-50 transition-colors"
+                                >
+                                  <div className="font-medium text-forest-900">{g.name}</div>
+                                  <div className="text-xs text-forest-700/60">{g.email}</div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                    
-                    {formData.selectedGuest ? (
-                      <div className="bg-forest-50 p-3 rounded-xl border border-forest-100 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-forest-200 text-forest-700 flex items-center justify-center font-bold text-xs">
-                            {formData.selectedGuest.name.charAt(0)}
+
+                        {selectedGuest && (
+                          <div className="bg-forest-50 p-4 rounded-2xl border border-forest-100">
+                            <div className="text-sm font-medium text-forest-900">{selectedGuest.name}</div>
+                            <div className="text-xs text-forest-700/60">{selectedGuest.email}</div>
                           </div>
-                          <div>
-                            <p className="text-sm font-semibold text-forest-900">{formData.selectedGuest.name}</p>
-                            <p className="text-xs text-forest-700/60">{formData.selectedGuest.id}</p>
-                          </div>
-                        </div>
-                        <button 
-                          onClick={() => setFormData({ ...formData, selectedGuest: null, guestSearch: '' })}
-                          className="text-xs text-red-600 hover:underline"
-                        >
-                          Change
-                        </button>
-                      </div>
-                    ) : (
-                      <button 
-                        onClick={() => navigate('/admin/guests')}
-                        className="w-full py-2.5 border-2 border-dashed border-earth-200 rounded-xl text-forest-700/50 hover:border-forest-300 hover:text-forest-700 transition-all flex items-center justify-center gap-2 text-sm font-medium"
-                      >
-                        <UserPlus className="w-4 h-4" />
-                        New Guest? Create Profile First
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Room Selection */}
-                <div className="space-y-4">
-                  <h3 className="text-sm font-bold text-forest-900 uppercase tracking-widest flex items-center gap-2">
-                    <Home className="w-4 h-4" />
-                    Room Selection
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-forest-700 ml-1">Room Type</label>
-                      <select 
-                        value={formData.roomType}
-                        onChange={(e) => setFormData({ ...formData, roomType: e.target.value })}
-                        className="w-full px-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 outline-none bg-white"
-                      >
-                        {ROOM_TYPES.map(type => (
-                          <option key={type.id} value={type.id}>{type.name} (${type.rate}/night)</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-forest-700 ml-1">Room Number</label>
-                      <input 
-                        type="text" 
-                        value={formData.roomNumber}
-                        onChange={(e) => setFormData({ ...formData, roomNumber: e.target.value })}
-                        className="w-full px-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 outline-none" 
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-forest-700 ml-1">Check-in Date</label>
-                      <div className="relative">
-                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-forest-400" />
-                        <input 
-                          type="date" 
-                          value={formData.checkIn}
-                          onChange={(e) => setFormData({ ...formData, checkIn: e.target.value })}
-                          className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 outline-none" 
-                        />
+                        )}
                       </div>
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-forest-700 ml-1">Check-out Date</label>
-                      <div className="relative">
-                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-forest-400" />
-                        <input 
-                          type="date" 
-                          value={formData.checkOut}
-                          onChange={(e) => setFormData({ ...formData, checkOut: e.target.value })}
-                          className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 outline-none" 
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-forest-700 ml-1">Number of Guests</label>
-                      <div className="relative">
-                        <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-forest-400" />
-                        <input 
-                          type="number" 
-                          min="1"
-                          value={formData.numGuests}
-                          onChange={(e) => setFormData({ ...formData, numGuests: parseInt(e.target.value) })}
-                          className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 outline-none" 
-                        />
-                      </div>
-                    </div>
-                    <div className="flex items-end pb-1">
-                      <div className="bg-earth-50 px-4 py-2.5 rounded-xl border border-earth-100 w-full flex items-center justify-between">
-                        <span className="text-xs text-forest-700/60">Duration:</span>
-                        <span className="text-sm font-bold text-forest-900">{numNights} Nights</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Booking Details */}
-                <div className="space-y-4">
-                  <h3 className="text-sm font-bold text-forest-900 uppercase tracking-widest flex items-center gap-2">
-                    <Tag className="w-4 h-4" />
-                    Booking Details
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-forest-700 ml-1">Booking Source</label>
-                      <select 
-                        value={formData.bookingSource}
-                        onChange={(e) => setFormData({ ...formData, bookingSource: e.target.value })}
-                        className="w-full px-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 outline-none bg-white"
-                      >
-                        <option>Walk-in</option>
-                        <option>Online</option>
-                        <option>Phone</option>
-                        <option>Travel Agency</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-forest-700 ml-1">Special Requests</label>
-                      <input 
-                        type="text" 
-                        placeholder="e.g. Extra towels, Late check-in"
-                        value={formData.specialRequests}
-                        onChange={(e) => setFormData({ ...formData, specialRequests: e.target.value })}
-                        className="w-full px-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 outline-none" 
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Payment */}
-                <div className="space-y-4">
-                  <h3 className="text-sm font-bold text-forest-900 uppercase tracking-widest flex items-center gap-2">
-                    <CreditCard className="w-4 h-4" />
-                    Payment Information
-                  </h3>
-                  <div className="bg-forest-900 text-white p-6 rounded-2xl shadow-lg relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-2xl" />
-                    <div className="relative z-10 flex justify-between items-end">
-                      <div>
-                        <p className="text-white/60 text-xs uppercase tracking-widest mb-1">Total Amount Due</p>
-                        <h4 className="text-3xl font-bold">${totalAmount.toLocaleString()}</h4>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-white/60 text-[10px] uppercase tracking-widest mb-1">Calculated Rate</p>
-                        <p className="text-sm font-medium">
-                          {ROOM_TYPES.find(r => r.id === formData.roomType)?.name} × {numNights} nights
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-forest-700 ml-1">Payment Method</label>
-                      <select 
-                        value={formData.paymentMethod}
-                        onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
-                        className="w-full px-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 outline-none bg-white"
-                      >
-                        <option>Cash</option>
-                        <option>PayPal</option>
-                        <option>Credit Card</option>
-                        <option>Bank Transfer</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-forest-700 ml-1">Payment Status</label>
-                      <select 
-                        value={formData.paymentStatus}
-                        onChange={(e) => setFormData({ ...formData, paymentStatus: e.target.value })}
-                        className="w-full px-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 outline-none bg-white"
-                      >
-                        <option>Pending</option>
-                        <option>Paid</option>
-                        <option>Partially Paid</option>
-                        <option>Refunded</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="p-6 border-t border-earth-100 bg-earth-50/30">
-                <button 
-                  onClick={handleNewBooking}
-                  disabled={isSaving}
-                  className="w-full bg-forest-700 hover:bg-forest-800 text-white py-4 rounded-2xl font-semibold transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-forest-900/10"
-                >
-                  {isSaving ? (
-                    <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <CheckCircle className="w-5 h-5" />
-                      Confirm & Create Reservation
-                    </>
                   )}
+
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-bold text-forest-900 uppercase tracking-widest flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      Booking Details
+                    </h3>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium text-forest-800">Room</label>
+                        <select
+                          value={form.room_number}
+                          onChange={(e) => setForm((p) => ({ ...p, room_number: e.target.value }))}
+                          className="w-full px-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 outline-none bg-white"
+                        >
+                          {rooms.map((r) => (
+                            <option key={r.room_number} value={r.room_number}>
+                              {r.room_number} - {r.type}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium text-forest-800">Status</label>
+                        <select
+                          value={form.status}
+                          onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}
+                          className="w-full px-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 outline-none bg-white"
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="confirmed">Confirmed</option>
+                          <option value="checked_out">Checked Out</option>
+                          <option value="cancelled">Cancelled</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium text-forest-800">Check-in</label>
+                        <input
+                          type="date"
+                          value={form.check_in_date}
+                          onChange={(e) => setForm((p) => ({ ...p, check_in_date: e.target.value }))}
+                          className="w-full px-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 outline-none"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium text-forest-800">Check-out</label>
+                        <input
+                          type="date"
+                          value={form.check_out_date}
+                          onChange={(e) => setForm((p) => ({ ...p, check_out_date: e.target.value }))}
+                          className="w-full px-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 outline-none"
+                        />
+                      </div>
+
+                      <div className="space-y-1 md:col-span-2">
+                        <label className="text-sm font-medium text-forest-800">Payment Status</label>
+                        <select
+                          value={form.payment_status}
+                          onChange={(e) => setForm((p) => ({ ...p, payment_status: e.target.value }))}
+                          className="w-full px-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 outline-none bg-white"
+                        >
+                          <option value="unpaid">Unpaid</option>
+                          <option value="paid">Paid</option>
+                          <option value="pending">Pending</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="bg-earth-50 p-4 rounded-2xl border border-earth-100 flex items-center justify-between">
+                      <div className="text-sm text-forest-800">
+                        Nights: <span className="font-semibold">{nights}</span>
+                      </div>
+                      <div className="text-sm text-forest-800">
+                        Total: <span className="font-semibold">{formatMoney(totalAmountCents, selectedRoom?.currency ?? 'PHP')}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={closeModal}
+                      className="px-4 py-2 rounded-xl border border-earth-200 hover:bg-earth-50 text-forest-800"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSaving}
+                      className="px-5 py-2.5 rounded-xl bg-forest-700 hover:bg-forest-800 text-white font-medium disabled:opacity-60"
+                    >
+                      {isSaving ? 'Saving...' : modalMode === 'add' ? 'Create Booking' : 'Save Changes'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {reservationToCancel && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setReservationToCancel(null)}
+              className="absolute inset-0 bg-forest-900/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.98, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.98, y: 10 }}
+              className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden relative z-10 border border-earth-100"
+            >
+              <div className="p-6 border-b border-earth-100 bg-earth-50/50 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-red-50 text-red-700 flex items-center justify-center border border-red-100">
+                    <AlertTriangle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-forest-900">Confirm Cancel</div>
+                    <div className="text-xs text-forest-700/60">RES-{String(reservationToCancel.id).padStart(4, '0')}</div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setReservationToCancel(null)}
+                  className="p-2 hover:bg-earth-100 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5 text-forest-800/50" />
                 </button>
+              </div>
+              <div className="p-6">
+                <p className="text-sm text-forest-800">Do you really want to cancel this reservation?</p>
+                <div className="mt-6 flex items-center justify-end gap-3">
+                  <button
+                    onClick={() => setReservationToCancel(null)}
+                    className="px-4 py-2 rounded-xl border border-earth-200 hover:bg-earth-50 text-forest-800"
+                  >
+                    No
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const r = reservationToCancel;
+                      setReservationToCancel(null);
+                      await cancelReservation(r);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-medium"
+                  >
+                    Yes, cancel
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>

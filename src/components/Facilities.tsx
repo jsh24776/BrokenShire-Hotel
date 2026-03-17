@@ -7,28 +7,28 @@ const facilities = [
     title: 'Infinity Pool',
     description: 'Swim amidst the treetops in our temperature-controlled infinity pool.',
     icon: Waves,
-    image: 'https://picsum.photos/seed/infinity-pool/600/400',
+    image: 'src/imgs/istockphoto-157511761-612x612.jpg',
   },
   {
     id: 2,
     title: 'Botanical Spa',
     description: 'Rejuvenate your senses with treatments inspired by local flora.',
     icon: Flower2,
-    image: 'https://picsum.photos/seed/botanical-spa/600/400',
+    image: 'src/imgs/thumb-1920-541029.jpg',
   },
   {
     id: 3,
     title: 'Organic Restaurant',
     description: 'Savor farm-to-table cuisine crafted from our very own gardens.',
     icon: UtensilsCrossed,
-    image: 'https://picsum.photos/seed/organic-restaurant/600/400',
+    image: 'src/imgs/photo-1600093463592-8e36ae95ef56.avif',
   },
   {
     id: 4,
     title: 'Wellness Center',
     description: 'Stay active with state-of-the-art equipment and yoga sessions.',
     icon: Dumbbell,
-    image: 'https://picsum.photos/seed/wellness-center/600/400',
+    image: 'src/imgs/shutterstock_49617541.webp',
   },
 ];
 

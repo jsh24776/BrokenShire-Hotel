@@ -98,7 +98,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-forest-700/70">Daily Revenue</p>
-              <h3 className="text-2xl font-semibold text-forest-900 mt-1">$8,450</h3>
+              <h3 className="text-2xl font-semibold text-forest-900 mt-1">₱28,450</h3>
             </div>
             <div className="w-12 h-12 bg-forest-50 rounded-full flex items-center justify-center text-forest-600">
               <TrendingUp className="w-6 h-6" />

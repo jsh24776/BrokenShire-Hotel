@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { User, Mail, Phone, MapPin, Lock, ArrowRight, Home, UserPlus, CheckCircle } from 'lucide-react';
 import { useToast } from '../components/ToastContext';
+import axios from 'axios';
+import { api } from '../lib/api';
+import { setAuth } from '../lib/auth';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -13,13 +16,43 @@ export default function RegisterPage() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
-    // Simulate registration
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    showToast("Account created successfully! Welcome to Brokenshire Hotel.", 'success');
-    navigate('/user');
-    setIsLoading(false);
+
+    const form = e.currentTarget as HTMLFormElement;
+    const data = new FormData(form);
+
+    const payload = {
+      name: String(data.get('name') ?? ''),
+      email: String(data.get('email') ?? ''),
+      phone: String(data.get('phone') ?? ''),
+      address: String(data.get('address') ?? ''),
+      password: String(data.get('password') ?? ''),
+      password_confirmation: String(data.get('password_confirmation') ?? ''),
+    };
+
+    if (payload.password !== payload.password_confirmation) {
+      showToast('Passwords do not match.', 'error');
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const res = await api.post('/register', payload);
+      setAuth(res.data.token, 'user');
+      showToast('Account created successfully! Welcome to Brokenshire Hotel.', 'success');
+      navigate('/user');
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        const message =
+          (err.response?.data as any)?.message ??
+          Object.values(((err.response?.data as any)?.errors ?? {}) as Record<string, string[]>)[0]?.[0] ??
+          'Registration failed.';
+        showToast(String(message), 'error');
+      } else {
+        showToast('Registration failed.', 'error');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -60,6 +93,7 @@ export default function RegisterPage() {
                     <div className="relative group">
                       <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-forest-300 group-focus-within:text-forest-500 transition-colors" />
                       <input 
+                        name="name"
                         type="text" 
                         required
                         placeholder="John Doe"
@@ -73,6 +107,7 @@ export default function RegisterPage() {
                     <div className="relative group">
                       <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-forest-300 group-focus-within:text-forest-500 transition-colors" />
                       <input 
+                        name="email"
                         type="email" 
                         required
                         placeholder="john@example.com"
@@ -86,6 +121,7 @@ export default function RegisterPage() {
                     <div className="relative group">
                       <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-forest-300 group-focus-within:text-forest-500 transition-colors" />
                       <input 
+                        name="phone"
                         type="tel" 
                         required
                         placeholder="+1 (555) 000-0000"
@@ -99,6 +135,7 @@ export default function RegisterPage() {
                     <div className="relative group">
                       <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-forest-300 group-focus-within:text-forest-500 transition-colors" />
                       <input 
+                        name="address"
                         type="text" 
                         required
                         placeholder="123 Nature Lane, Forest City"
@@ -122,9 +159,10 @@ export default function RegisterPage() {
                     <div className="relative group">
                       <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-forest-300 group-focus-within:text-forest-500 transition-colors" />
                       <input 
+                        name="password"
                         type="password" 
                         required
-                        placeholder="••••••••"
+                        placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                         className="w-full pl-12 pr-4 py-3 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-4 focus:ring-forest-500/10 outline-none transition-all"
                       />
                     </div>
@@ -135,9 +173,10 @@ export default function RegisterPage() {
                     <div className="relative group">
                       <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-forest-300 group-focus-within:text-forest-500 transition-colors" />
                       <input 
+                        name="password_confirmation"
                         type="password" 
                         required
-                        placeholder="••••••••"
+                        placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                         className="w-full pl-12 pr-4 py-3 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-4 focus:ring-forest-500/10 outline-none transition-all"
                       />
                     </div>

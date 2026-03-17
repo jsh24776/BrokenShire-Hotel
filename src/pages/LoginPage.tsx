@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { LogIn, User, Shield, Lock, Mail, ArrowRight, Home } from 'lucide-react';
 import { useToast } from '../components/ToastContext';
+import axios from 'axios';
+import { api } from '../lib/api';
+import { setAuth } from '../lib/auth';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -13,18 +16,35 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
-    // Simulate authentication
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    showToast(`Welcome back! Logged in as ${role === 'admin' ? 'Administrator' : 'Guest'}.`, 'success');
-    
-    if (role === 'admin') {
-      navigate('/admin');
-    } else {
-      navigate('/user');
+
+    const form = e.currentTarget as HTMLFormElement;
+    const data = new FormData(form);
+
+    const payload = {
+      email: String(data.get('email') ?? ''),
+      password: String(data.get('password') ?? ''),
+    };
+
+    try {
+      const endpoint = role === 'admin' ? '/admin/login' : '/login';
+      const res = await api.post(endpoint, payload);
+      setAuth(res.data.token, role);
+      showToast("Welcome back! Logged in as " + (role === 'admin' ? 'Administrator' : 'Guest') + ".", 'success');
+
+      navigate(role === 'admin' ? '/admin' : '/user');
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        const message =
+          (err.response?.data as any)?.message ??
+          Object.values(((err.response?.data as any)?.errors ?? {}) as Record<string, string[]>)[0]?.[0] ??
+          'Login failed.';
+        showToast(String(message), 'error');
+      } else {
+        showToast('Login failed.', 'error');
+      }
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   return (
@@ -82,6 +102,7 @@ export default function LoginPage() {
                 <div className="relative group">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-forest-300 group-focus-within:text-forest-500 transition-colors" />
                   <input 
+                    name="email"
                     type="email" 
                     required
                     placeholder="name@example.com"
@@ -98,9 +119,10 @@ export default function LoginPage() {
                 <div className="relative group">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-forest-300 group-focus-within:text-forest-500 transition-colors" />
                   <input 
+                    name="password"
                     type="password" 
                     required
-                    placeholder="••••••••"
+                    placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                     className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-earth-200 focus:border-forest-500 focus:ring-4 focus:ring-forest-500/10 outline-none transition-all"
                   />
                 </div>

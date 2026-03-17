@@ -4,11 +4,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../components/ToastContext';
 
 const initialInvoices = [
-  { id: 'INV-2023-001', guest: 'Sarah Jenkins', date: '2023-10-25', amount: '$750.00', status: 'Paid', method: 'Credit Card' },
-  { id: 'INV-2023-002', guest: 'Michael Chen', date: '2023-10-25', amount: '$360.00', status: 'Pending', method: '-' },
-  { id: 'INV-2023-003', guest: 'Emily Davis', date: '2023-10-26', amount: '$1,800.00', status: 'Paid', method: 'PayPal' },
-  { id: 'INV-2023-004', guest: 'Robert Wilson', date: '2023-10-22', amount: '$750.00', status: 'Paid', method: 'Cash' },
-  { id: 'INV-2023-005', guest: 'Amanda Taylor', date: '2023-10-28', amount: '$900.00', status: 'Refunded', method: 'Credit Card' },
+  { id: 'INV-2023-001', guest: 'Sarah Jenkins', date: '2023-10-25', amount: '₱750.00', status: 'Paid', method: 'Credit Card' },
+  { id: 'INV-2023-002', guest: 'Michael Chen', date: '2023-10-25', amount: '₱2,360.00', status: 'Pending', method: '-' },
+  { id: 'INV-2023-003', guest: 'Emily Davis', date: '2023-10-26', amount: '₱1,800.00', status: 'Paid', method: 'PayPal' },
+  { id: 'INV-2023-004', guest: 'Robert Wilson', date: '2023-10-22', amount: '₱250.00', status: 'Paid', method: 'Cash' },
+  { id: 'INV-2023-005', guest: 'Amanda Taylor', date: '2023-10-28', amount: '₱1,500.00', status: 'Refunded', method: 'Credit Card' },
 ];
 
 export default function Billing() {
