@@ -3,10 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Invoice;
+use App\Models\Payment;
 use App\Models\Reservation;
 use App\Models\Room;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class BookingController extends Controller
@@ -17,6 +20,7 @@ class BookingController extends Controller
 
         $reservations = Reservation::query()
             ->where('user_id', $user->id)
+            ->with(['invoice:id,reservation_id,invoice_number,payment_status,payment_method,payment_reference,paid_at'])
             ->orderByDesc('check_in_date')
             ->get([
                 'id',
@@ -47,6 +51,7 @@ class BookingController extends Controller
             return [
                 'id' => $r->id,
                 'reference' => 'RES-'.str_pad((string) $r->id, 4, '0', STR_PAD_LEFT),
+                'invoice_number' => $r->invoice?->invoice_number,
                 'room_number' => $r->room_number,
                 'room_name' => $room?->display_name ?? $r->room_type,
                 'room_type' => $r->room_type,
@@ -111,30 +116,70 @@ class BookingController extends Controller
         $paymentMethod = $validated['payment_method'] ?? 'hotel';
         $paymentReference = $validated['payment_reference'] ?? null;
 
-        // NOTE: This is a student-project placeholder. Real PayPal integration must verify webhooks/server-side.
+        // NOTE: Student-project placeholder. Real PayPal integration must verify server-side.
         $paymentStatus = $paymentMethod === 'paypal' ? 'paid' : 'unpaid';
         $reservationStatus = $paymentMethod === 'paypal' ? 'confirmed' : 'pending';
 
-        $reservation = Reservation::create([
-            'user_id' => $user->id,
-            'room_number' => $room->room_number,
-            'room_type' => $room->type,
-            'check_in_date' => $checkIn->toDateString(),
-            'check_out_date' => $checkOut->toDateString(),
-            'nights' => $nights,
-            'amount_cents' => $amountCents,
-            'currency' => $room->currency ?? 'PHP',
-            'payment_method' => $paymentMethod,
-            'payment_reference' => $paymentReference,
-            'paid_at' => $paymentStatus === 'paid' ? now() : null,
-            'payment_status' => $paymentStatus,
-            'status' => $reservationStatus,
-        ]);
+        $reservation = DB::transaction(function () use (
+            $user,
+            $room,
+            $checkIn,
+            $checkOut,
+            $nights,
+            $amountCents,
+            $paymentMethod,
+            $paymentReference,
+            $paymentStatus,
+            $reservationStatus
+        ) {
+            $reservation = Reservation::create([
+                'user_id' => $user->id,
+                'room_number' => $room->room_number,
+                'room_type' => $room->type,
+                'check_in_date' => $checkIn->toDateString(),
+                'check_out_date' => $checkOut->toDateString(),
+                'nights' => $nights,
+                'amount_cents' => $amountCents,
+                'currency' => $room->currency ?? 'PHP',
+                'payment_method' => $paymentMethod,
+                'payment_reference' => $paymentReference,
+                'paid_at' => $paymentStatus === 'paid' ? now() : null,
+                'payment_status' => $paymentStatus,
+                'status' => $reservationStatus,
+            ]);
+
+            $invoice = Invoice::create([
+                'reservation_id' => $reservation->id,
+                'invoice_number' => 'INV-'.now()->format('Y').'-'.str_pad((string) $reservation->id, 5, '0', STR_PAD_LEFT),
+                'total_cents' => (int) $reservation->amount_cents,
+                'currency' => $reservation->currency ?? 'PHP',
+                'payment_status' => $reservation->payment_status ?? 'unpaid',
+                'payment_method' => $reservation->payment_method,
+                'payment_reference' => $reservation->payment_reference,
+                'paid_at' => $reservation->paid_at,
+                'issued_at' => now(),
+            ]);
+
+            if ($paymentStatus === 'paid') {
+                Payment::create([
+                    'invoice_id' => $invoice->id,
+                    'method' => $paymentMethod,
+                    'reference' => $paymentReference,
+                    'amount_cents' => (int) $reservation->amount_cents,
+                    'currency' => $reservation->currency ?? 'PHP',
+                    'status' => 'paid',
+                    'paid_at' => $reservation->paid_at,
+                ]);
+            }
+
+            return $reservation->load('invoice');
+        });
 
         return response()->json([
             'booking' => [
                 'id' => $reservation->id,
                 'reference' => 'RES-'.str_pad((string) $reservation->id, 4, '0', STR_PAD_LEFT),
+                'invoice_number' => $reservation->invoice?->invoice_number,
                 'room_number' => $reservation->room_number,
                 'room_name' => $room->display_name ?? $room->type,
                 'room_type' => $reservation->room_type,
@@ -162,6 +207,8 @@ class BookingController extends Controller
             return response()->json(['message' => 'Not found.'], 404);
         }
 
+        $reservation->load(['invoice:id,reservation_id,invoice_number']);
+
         $room = Room::where('room_number', $reservation->room_number)
             ->first(['room_number', 'display_name', 'type', 'image_url']);
 
@@ -169,6 +216,7 @@ class BookingController extends Controller
             'booking' => [
                 'id' => $reservation->id,
                 'reference' => 'RES-'.str_pad((string) $reservation->id, 4, '0', STR_PAD_LEFT),
+                'invoice_number' => $reservation->invoice?->invoice_number,
                 'room_number' => $reservation->room_number,
                 'room_name' => $room?->display_name ?? $reservation->room_type,
                 'room_type' => $reservation->room_type,
@@ -200,6 +248,24 @@ class BookingController extends Controller
             return response()->json(['message' => 'This booking can no longer be cancelled.'], 409);
         }
 
+        if (! in_array($reservation->status, ['pending', 'confirmed'], true)) {
+            return response()->json(['message' => 'This booking cannot be cancelled at its current status.'], 409);
+        }
+
+        if ($reservation->payment_status === 'paid') {
+            return response()->json([
+                'message' => 'This booking is already paid. Please contact the hotel/admin to cancel and process refunds.',
+            ], 409);
+        }
+
+        $checkInAt = Carbon::parse($reservation->check_in_date)->setTime(14, 0);
+        $cutoff = $checkInAt->copy()->subHours(24);
+        if (now()->greaterThanOrEqualTo($cutoff)) {
+            return response()->json([
+                'message' => 'Cancellation is only allowed up to 24 hours before check-in.',
+            ], 409);
+        }
+
         $reservation->status = 'cancelled';
         $reservation->save();
 
@@ -227,13 +293,40 @@ class BookingController extends Controller
             'payment_reference' => ['nullable', 'string', 'max:255'],
         ]);
 
-        // NOTE: Student-project placeholder: real PayPal requires server-side verification/webhooks.
-        $reservation->payment_method = 'paypal';
-        $reservation->payment_reference = $validated['payment_reference'] ?? ('PP-'.now()->timestamp.'-'.$reservation->id);
-        $reservation->paid_at = now();
-        $reservation->payment_status = 'paid';
-        $reservation->status = $reservation->status === 'pending' ? 'confirmed' : $reservation->status;
-        $reservation->save();
+        $reservation = DB::transaction(function () use ($reservation, $validated) {
+            $reservation->payment_method = 'paypal';
+            $reservation->payment_reference = $validated['payment_reference'] ?? ('PP-'.now()->timestamp.'-'.$reservation->id);
+            $reservation->paid_at = now();
+            $reservation->payment_status = 'paid';
+            $reservation->status = $reservation->status === 'pending' ? 'confirmed' : $reservation->status;
+            $reservation->save();
+
+            $invoice = $reservation->invoice ?: Invoice::create([
+                'reservation_id' => $reservation->id,
+                'invoice_number' => 'INV-'.now()->format('Y').'-'.str_pad((string) $reservation->id, 5, '0', STR_PAD_LEFT),
+                'total_cents' => (int) $reservation->amount_cents,
+                'currency' => $reservation->currency ?? 'PHP',
+                'issued_at' => $reservation->created_at ?? now(),
+            ]);
+
+            $invoice->payment_status = 'paid';
+            $invoice->payment_method = 'paypal';
+            $invoice->payment_reference = $reservation->payment_reference;
+            $invoice->paid_at = $reservation->paid_at;
+            $invoice->save();
+
+            Payment::create([
+                'invoice_id' => $invoice->id,
+                'method' => 'paypal',
+                'reference' => $reservation->payment_reference,
+                'amount_cents' => (int) $reservation->amount_cents,
+                'currency' => $reservation->currency ?? 'PHP',
+                'status' => 'paid',
+                'paid_at' => $reservation->paid_at,
+            ]);
+
+            return $reservation->load('invoice');
+        });
 
         $room = Room::where('room_number', $reservation->room_number)
             ->first(['room_number', 'display_name', 'type', 'image_url']);
@@ -242,6 +335,7 @@ class BookingController extends Controller
             'booking' => [
                 'id' => $reservation->id,
                 'reference' => 'RES-'.str_pad((string) $reservation->id, 4, '0', STR_PAD_LEFT),
+                'invoice_number' => $reservation->invoice?->invoice_number,
                 'room_number' => $reservation->room_number,
                 'room_name' => $room?->display_name ?? $reservation->room_type,
                 'room_type' => $reservation->room_type,

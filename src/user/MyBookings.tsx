@@ -8,6 +8,7 @@ import { api } from '../lib/api';
 type Booking = {
   id: number;
   reference: string;
+  invoice_number?: string | null;
   room_number: string;
   room_name: string;
   room_type: string;
@@ -272,7 +273,12 @@ export default function MyBookings() {
                   )}
                   <div>
                     <h3 className="text-lg font-serif font-semibold text-forest-900">{selectedBooking.room_name}</h3>
-                    <p className="text-sm text-forest-700/60">Reservation #{selectedBooking.reference}</p>
+                    <p className="text-sm text-forest-700/60">
+                      Reservation #{selectedBooking.reference}
+                      {selectedBooking.invoice_number ? (
+                        <span className="text-forest-700/40"> • {selectedBooking.invoice_number}</span>
+                      ) : null}
+                    </p>
                     <span className={`mt-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(selectedBooking.status)}`}>
                       {titleCase(selectedBooking.status)}
                     </span>

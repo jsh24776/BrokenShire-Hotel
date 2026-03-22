@@ -7,7 +7,7 @@ const rooms = [
     name: 'Forest View Suite',
     description: 'Wake up to the serene sounds of nature in our spacious suite featuring panoramic forest views and a private balcony.',
     price: 1250,
-    image: 'src/imgs/istockphoto-157423413-612x612.jpg',
+    image: '/src/imgs/istockphoto-157423413-612x612.jpg',
     amenities: ['King Bed', '2 Guests', 'Free Wi-Fi', 'Breakfast'],
   },
   {
@@ -15,7 +15,7 @@ const rooms = [
     name: 'Garden Retreat',
     description: 'A cozy and elegant room nestled by our botanical gardens, perfect for a peaceful getaway with direct garden access.',
     price: 2480,
-    image: 'src/imgs/garden-retreat.jpg',
+    image: '/src/imgs/garden-retreat.jpg',
     amenities: ['Queen Bed', '2 Guests', 'Free Wi-Fi', 'Breakfast'],
   },
   {
@@ -23,7 +23,7 @@ const rooms = [
     name: 'Canopy Family Villa',
     description: 'Ideal for families, this expansive villa offers multiple bedrooms, a private lounge, and stunning views of the tree canopy.',
     price: 4450,
-    image: 'src/imgs/canopy.jpg',
+    image: '/src/imgs/canopy.jpg',
     amenities: ['2 King Beds', '4 Guests', 'Free Wi-Fi', 'Breakfast'],
   },
 ];

@@ -3,11 +3,15 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Invoice;
+use App\Models\Payment;
 use App\Models\Reservation;
 use App\Models\Room;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class AdminReservationController extends Controller
 {
@@ -18,7 +22,7 @@ class AdminReservationController extends Controller
         $perPage = max(1, min(100, $perPage));
 
         $query = Reservation::query()
-            ->with(['user:id,name,email'])
+            ->with(['user:id,name,email', 'invoice:id,reservation_id,invoice_number,payment_status,payment_method,payment_reference,paid_at'])
             ->orderByDesc('check_in_date');
 
         if ($search !== '') {
@@ -62,20 +66,33 @@ class AdminReservationController extends Controller
 
         $amountCents = (int) $room->base_rate_cents * $nights;
 
-        $reservation = Reservation::create([
-            'user_id' => $user->id,
-            'room_number' => $room->room_number,
-            'room_type' => $room->type,
-            'check_in_date' => $checkIn->toDateString(),
-            'check_out_date' => $checkOut->toDateString(),
-            'nights' => $nights,
-            'amount_cents' => $amountCents,
-            'currency' => $room->currency ?? 'PHP',
-            'payment_status' => $validated['payment_status'] ?? 'unpaid',
-            'status' => $validated['status'] ?? 'pending',
-        ]);
+        $reservation = DB::transaction(function () use ($user, $room, $checkIn, $checkOut, $nights, $amountCents, $validated) {
+            $reservation = Reservation::create([
+                'user_id' => $user->id,
+                'room_number' => $room->room_number,
+                'room_type' => $room->type,
+                'check_in_date' => $checkIn->toDateString(),
+                'check_out_date' => $checkOut->toDateString(),
+                'nights' => $nights,
+                'amount_cents' => $amountCents,
+                'currency' => $room->currency ?? 'PHP',
+                'payment_status' => $validated['payment_status'] ?? 'unpaid',
+                'status' => $validated['status'] ?? 'pending',
+            ]);
 
-        $reservation->load(['user:id,name,email']);
+            Invoice::create([
+                'reservation_id' => $reservation->id,
+                'invoice_number' => 'INV-'.now()->format('Y').'-'.str_pad((string) $reservation->id, 5, '0', STR_PAD_LEFT),
+                'total_cents' => (int) $reservation->amount_cents,
+                'currency' => $reservation->currency ?? 'PHP',
+                'payment_status' => $reservation->payment_status ?? 'unpaid',
+                'issued_at' => now(),
+            ]);
+
+            return $reservation;
+        });
+
+        $reservation->load(['user:id,name,email', 'invoice']);
 
         return response()->json(['reservation' => $reservation], 201);
     }
@@ -131,23 +148,153 @@ class AdminReservationController extends Controller
         }
 
         $reservation->save();
-        $reservation->load(['user:id,name,email']);
+
+        // Keep invoice totals in sync.
+        $invoice = $reservation->invoice;
+        if ($invoice) {
+            $invoice->total_cents = (int) $reservation->amount_cents;
+            $invoice->currency = $reservation->currency ?? $invoice->currency;
+            $invoice->save();
+        }
+
+        $reservation->load(['user:id,name,email', 'invoice']);
 
         return response()->json(['reservation' => $reservation]);
     }
 
     public function confirm(Reservation $reservation)
     {
+        if ($reservation->status !== 'pending') {
+            return response()->json(['message' => 'Only pending reservations can be confirmed.'], 409);
+        }
+
         $reservation->status = 'confirmed';
         $reservation->save();
+
+        $reservation->load(['user:id,name,email', 'invoice']);
 
         return response()->json(['reservation' => $reservation]);
     }
 
     public function cancel(Reservation $reservation)
     {
-        $reservation->status = 'cancelled';
-        $reservation->save();
+        if (in_array($reservation->status, ['checked_out', 'cancelled'], true)) {
+            return response()->json(['message' => 'This reservation can no longer be cancelled.'], 409);
+        }
+
+        $reservation = DB::transaction(function () use ($reservation) {
+            $reservation->status = 'cancelled';
+            $reservation->save();
+
+            $invoice = $reservation->invoice;
+            if ($invoice && $invoice->payment_status === 'paid') {
+                $invoice->payment_status = 'refund_pending';
+                $invoice->save();
+            }
+
+            return $reservation;
+        });
+
+        $reservation->load(['user:id,name,email', 'invoice']);
+
+        return response()->json(['reservation' => $reservation]);
+    }
+
+    public function recordPayment(Request $request, Reservation $reservation)
+    {
+        if (in_array($reservation->status, ['cancelled', 'checked_out'], true)) {
+            return response()->json(['message' => 'Cannot record payment for this reservation.'], 409);
+        }
+
+        if ($reservation->payment_status === 'paid') {
+            return response()->json(['message' => 'This reservation is already marked as paid.'], 409);
+        }
+
+        $validated = $request->validate([
+            'payment_method' => ['required', Rule::in(['hotel', 'paypal'])],
+            'payment_reference' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $reservation = DB::transaction(function () use ($reservation, $validated) {
+            $reservation->payment_method = $validated['payment_method'];
+            $reservation->payment_reference = $validated['payment_reference'] ?? $reservation->payment_reference;
+            $reservation->paid_at = now();
+            $reservation->payment_status = 'paid';
+
+            if ($reservation->status === 'pending') {
+                $reservation->status = 'confirmed';
+            }
+
+            $reservation->save();
+
+            $invoice = $reservation->invoice ?: Invoice::create([
+                'reservation_id' => $reservation->id,
+                'invoice_number' => 'INV-'.now()->format('Y').'-'.str_pad((string) $reservation->id, 5, '0', STR_PAD_LEFT),
+                'total_cents' => (int) $reservation->amount_cents,
+                'currency' => $reservation->currency ?? 'PHP',
+                'issued_at' => $reservation->created_at ?? now(),
+            ]);
+
+            $invoice->total_cents = (int) $reservation->amount_cents;
+            $invoice->currency = $reservation->currency ?? $invoice->currency;
+            $invoice->payment_status = 'paid';
+            $invoice->payment_method = $reservation->payment_method;
+            $invoice->payment_reference = $reservation->payment_reference;
+            $invoice->paid_at = $reservation->paid_at;
+            $invoice->save();
+
+            Payment::create([
+                'invoice_id' => $invoice->id,
+                'method' => $reservation->payment_method ?? 'hotel',
+                'reference' => $reservation->payment_reference,
+                'amount_cents' => (int) $reservation->amount_cents,
+                'currency' => $reservation->currency ?? 'PHP',
+                'status' => 'paid',
+                'paid_at' => $reservation->paid_at,
+            ]);
+
+            return $reservation;
+        });
+
+        $reservation->load(['user:id,name,email', 'invoice']);
+
+        return response()->json(['reservation' => $reservation]);
+    }
+
+    public function refund(Reservation $reservation)
+    {
+        $invoice = $reservation->invoice;
+        $invoiceStatus = $invoice?->payment_status ?? $reservation->payment_status;
+
+        if (! $invoice || ! in_array($invoiceStatus, ['paid', 'refund_pending'], true)) {
+            return response()->json(['message' => 'Only paid reservations can be refunded.'], 409);
+        }
+
+        if ($reservation->status !== 'cancelled') {
+            return response()->json(['message' => 'Cancel the reservation before refunding.'], 409);
+        }
+
+        $reservation = DB::transaction(function () use ($reservation, $invoice) {
+            $invoice->payment_status = 'refunded';
+            $invoice->save();
+
+            $reservation->payment_status = 'refunded';
+            $reservation->save();
+
+            Payment::create([
+                'invoice_id' => $invoice->id,
+                'method' => $invoice->payment_method ?? ($reservation->payment_method ?? 'hotel'),
+                'reference' => $invoice->payment_reference,
+                'amount_cents' => -1 * (int) $invoice->total_cents,
+                'currency' => $invoice->currency ?? 'PHP',
+                'status' => 'refunded',
+                'paid_at' => now(),
+            ]);
+
+            return $reservation;
+        });
+
+        $reservation->load(['user:id,name,email', 'invoice']);
 
         return response()->json(['reservation' => $reservation]);
     }

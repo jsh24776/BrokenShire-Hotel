@@ -13,6 +13,7 @@ class Room extends Model
      * @var list<string>
      */
     protected $fillable = [
+        'room_type_id',
         'room_number',
         'display_name',
         'type',
@@ -35,6 +36,11 @@ class Room extends Model
             'amenities' => 'array',
             'archived_at' => 'datetime',
         ];
+    }
+
+    public function roomType()
+    {
+        return $this->belongsTo(RoomType::class);
     }
 
     public function getRouteKeyName(): string

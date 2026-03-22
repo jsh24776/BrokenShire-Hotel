@@ -14,7 +14,7 @@ import {
 import { useToast } from '../components/ToastContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { api } from '../lib/api';
-
+import { useSearchParams } from 'react-router-dom';
 type Room = {
   room_number: string;
   display_name: string | null;
@@ -33,6 +33,7 @@ type Room = {
 type BookingReceipt = {
   id: number;
   reference: string;
+  invoice_number?: string | null;
   room_number: string;
   room_name: string;
   room_type: string;
@@ -51,7 +52,7 @@ type BookingReceipt = {
 
 const AMENITY_LABELS: Record<string, string> = {
   ac: 'AC',
-  wifi: 'Wi-Fi',
+  wifi: 'Free Wi-Fi',
   tv: 'TV',
   forest_view: 'Forest View',
   garden_view: 'Garden View',
@@ -62,6 +63,10 @@ const AMENITY_LABELS: Record<string, string> = {
   outdoor_bath: 'Outdoor Bath',
   private_pool: 'Private Pool',
   coffee_maker: 'Coffee Maker',
+  breakfast: 'Breakfast',
+  king_bed: 'King Bed',
+  queen_bed: 'Queen Bed',
+  two_king_beds: '2 King Beds',
 };
 
 function formatMoney(cents: number, currency: string) {
@@ -88,9 +93,11 @@ function paymentMethodLabel(method: 'hotel' | 'paypal') {
 
 export default function SearchRooms() {
   const { showToast } = useToast();
+  const [searchParams] = useSearchParams();
 
   const [dates, setDates] = useState({ checkIn: '', checkOut: '' });
   const [guests, setGuests] = useState('2');
+  const [preferredType, setPreferredType] = useState<string | null>(null);
 
   const [rooms, setRooms] = useState<Room[]>([]);
   const [isLoadingRooms, setIsLoadingRooms] = useState(true);
@@ -169,6 +176,23 @@ export default function SearchRooms() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  useEffect(() => {
+    const type = searchParams.get('type');
+    const checkIn = searchParams.get('checkIn');
+    const checkOut = searchParams.get('checkOut');
+    const guestsParam = searchParams.get('guests');
+
+    if (type) setPreferredType(type);
+    if (checkIn || checkOut) {
+      setDates((prev) => ({
+        ...prev,
+        checkIn: checkIn ?? prev.checkIn,
+        checkOut: checkOut ?? prev.checkOut,
+      }));
+    }
+    if (guestsParam) setGuests(guestsParam);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -188,6 +212,12 @@ export default function SearchRooms() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dates.checkIn, dates.checkOut, guests]);
+  useEffect(() => {
+    if (!preferredType) return;
+    if (selectedRoomNumber) return;
+    const match = rooms.find((r) => r.type === preferredType && r.available) ?? rooms.find((r) => r.type === preferredType);
+    if (match) setSelectedRoomNumber(match.room_number);
+  }, [preferredType, rooms, selectedRoomNumber]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -290,6 +320,78 @@ export default function SearchRooms() {
     } finally {
       setIsBooking(false);
     }
+  };
+
+  const downloadPaypalInvoicePdf = () => {
+    if (!selectedRoom) return;
+
+    const invoiceId = paypalInvoiceId ?? `PP-${Date.now()}`;
+    const total = formatMoney(pricing.totalCents, selectedRoom.currency);
+
+    const html = `<!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>${invoiceId} Invoice</title>
+        <style>
+          :root { color-scheme: light; }
+          body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 0; padding: 24px; color: #0b2a1f; }
+          .card { border: 1px solid #eadfd2; border-radius: 16px; overflow: hidden; max-width: 860px; margin: 0 auto; }
+          .header { background: linear-gradient(90deg, #003087, #009CDE); padding: 18px 20px; color: white; display:flex; justify-content:space-between; align-items:center; }
+          .title { font-size: 18px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+          .sub { font-size: 12px; opacity: .9; margin-top: 4px; }
+          .content { padding: 20px; background: #ffffff; }
+          .grid { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+          .box { background: #fbfaf8; border: 1px solid #eadfd2; border-radius: 14px; padding: 12px; }
+          .label { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #6f6a63; font-weight: 800; }
+          .value { margin-top: 6px; font-size: 14px; font-weight: 800; }
+          .muted { font-size: 12px; color: #456b60; margin-top: 2px; }
+          .totals { margin-top: 16px; border-top: 1px solid #eadfd2; padding-top: 14px; }
+          .row { display:flex; justify-content:space-between; font-size: 13px; margin-top: 8px; }
+          .row strong { font-weight: 900; }
+          .note { margin-top: 16px; background: #eef6f2; border: 1px solid #d8efe5; border-radius: 14px; padding: 12px; font-size: 12px; color: #1f4a3b; }
+          @media print { body { padding: 0; } .card { border: none; border-radius: 0; } }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <div class="header">
+            <div>
+              <div class="title">PayPal Invoice</div>
+              <div class="sub">Invoice ID: ${invoiceId}</div>
+            </div>
+            <div class="sub">${new Intl.DateTimeFormat('en-PH', { dateStyle: 'medium' }).format(new Date())}</div>
+          </div>
+          <div class="content">
+            <div class="grid">
+              <div class="box">
+                <div class="label">Guest</div>
+                <div class="value">${guestDetails.fullName || '—'}</div>
+                <div class="muted">${guestDetails.email || '—'}</div>
+              </div>
+              <div class="box">
+                <div class="label">Room</div>
+                <div class="value">${selectedRoom.display_name ?? selectedRoom.type} (Room ${selectedRoom.room_number})</div>
+                <div class="muted">${dates.checkIn} → ${dates.checkOut} • ${pricing.nights} night(s)</div>
+              </div>
+            </div>
+
+            <div class="totals">
+              <div class="row"><span>Booking Total</span><strong>${total}</strong></div>
+            </div>
+
+            <div class="note">This is a simulated PayPal invoice for the Brokenshire Hotel student project.</div>
+          </div>
+        </div>
+        <script>window.onload = () => { window.focus(); window.print(); };</script>
+      </body>
+    </html>`;
+
+    const w = window.open('', '_blank', 'noopener,noreferrer');
+    if (!w) return;
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
   };
 
   return (
@@ -709,7 +811,14 @@ export default function SearchRooms() {
                                 </div>
                               </div>
 
-                              <div className="mt-4 flex justify-end">
+                              <div className="mt-4 flex items-center justify-between gap-3">
+                                <button
+                                  type="button"
+                                  onClick={downloadPaypalInvoicePdf}
+                                  className="px-4 py-2 rounded-xl border border-earth-200 text-forest-800 hover:bg-earth-50 text-sm font-medium"
+                                >
+                                  Download Invoice PDF
+                                </button>
                                 <button
                                   type="button"
                                   disabled={paypalPaid || isPaying || pricing.nights <= 0}
@@ -723,7 +832,7 @@ export default function SearchRooms() {
                                   }}
                                   className="px-4 py-2 rounded-xl bg-[#003087] hover:bg-[#001C64] text-white text-sm font-medium disabled:opacity-60"
                                 >
-                                  {paypalPaid ? 'Paid' : isPaying ? 'Processing…' : 'Pay Now'}
+                                  {paypalPaid ? 'Paid' : isPaying ? 'Processing�' : 'Pay Now'}
                                 </button>
                               </div>
                             </div>
@@ -874,7 +983,10 @@ export default function SearchRooms() {
               <div className="p-6 border-b border-earth-100 flex justify-between items-center bg-earth-50/50">
                 <div>
                   <h2 className="text-xl font-serif font-semibold text-forest-900">Booking Receipt</h2>
-                  <p className="text-sm text-forest-700/60">{receipt.reference}</p>
+                  <p className="text-sm text-forest-700/60">
+                    {receipt.reference}
+                    {receipt.invoice_number ? <span className="text-forest-700/40"> • {receipt.invoice_number}</span> : null}
+                  </p>
                 </div>
                 <button onClick={() => setReceipt(null)} className="p-2 hover:bg-earth-100 rounded-full transition-colors">
                   <X className="w-5 h-5 text-forest-800/50" />

@@ -14,6 +14,7 @@ import {
   Leaf,
   Bell
 } from 'lucide-react';
+import HelpChatbot from './HelpChatbot';
 
 export default function UserLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -144,6 +145,8 @@ export default function UserLayout() {
             </motion.div>
           </AnimatePresence>
         </main>
+
+        <HelpChatbot />
       </div>
     </div>
   );

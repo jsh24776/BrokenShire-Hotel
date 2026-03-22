@@ -16,6 +16,7 @@ import { api } from '../lib/api';
 type Booking = {
   id: number;
   reference: string;
+  invoice_number?: string | null;
   room_number: string;
   room_name: string;
   room_type: string;
@@ -316,7 +317,10 @@ export default function Payments() {
                   >
                     <td className="p-4">
                       <div className="font-medium text-forest-800">{b.reference}</div>
-                      <div className="text-xs text-forest-700/60">{b.room_name} • Room {b.room_number}</div>
+                      <div className="text-xs text-forest-700/60">
+                        {b.room_name} • Room {b.room_number}
+                        {b.invoice_number ? <span className="text-forest-700/40"> • {b.invoice_number}</span> : null}
+                      </div>
                     </td>
                     <td className="p-4">{formatDateShort(b.paid_at ?? b.created_at)}</td>
                     <td className="p-4 font-medium">{formatMoney(b.amount_cents, b.currency || 'PHP')}</td>

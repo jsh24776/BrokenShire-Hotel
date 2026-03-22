@@ -1,42 +1,128 @@
-import { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import axios from 'axios';
 import { Star, MessageSquare, Send } from 'lucide-react';
 import { useToast } from '../components/ToastContext';
+import { api } from '../lib/api';
 
-const reviews = [
-  {
-    id: 1,
-    room: 'Garden Retreat',
-    date: 'August 15, 2023',
-    rating: 5,
-    comment: 'Absolutely wonderful stay. The garden access was perfect for our morning coffee. The staff was incredibly attentive and the room was spotless.',
-  },
-  {
-    id: 2,
-    room: 'Forest Suite',
-    date: 'March 10, 2023',
-    rating: 4,
-    comment: 'Great views and very peaceful. The bed was extremely comfortable. Only giving 4 stars because the Wi-Fi was a bit spotty in our specific room.',
-  }
-];
+type Booking = {
+  id: number;
+  reference: string;
+  room_name: string;
+  room_number: string;
+  check_in_date: string;
+  check_out_date: string;
+  status: string;
+};
+
+type Feedback = {
+  id: number;
+  reservation_id: number;
+  reservation_ref: string;
+  room_name: string;
+  room_number: string | null;
+  check_in_date: string | null;
+  check_out_date: string | null;
+  rating: number;
+  comment: string;
+  created_at: string | null;
+};
+
+function formatDateShort(value: string | null) {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return new Intl.DateTimeFormat('en-PH', { month: 'short', day: '2-digit', year: 'numeric' }).format(d);
+}
 
 export default function Feedback() {
   const { showToast } = useToast();
+
   const [rating, setRating] = useState(0);
   const [hoveredRating, setHoveredRating] = useState(0);
   const [comment, setComment] = useState('');
+  const [reservationId, setReservationId] = useState<number | null>(null);
+
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const fetchData = async (signal?: AbortSignal) => {
+    setError(null);
+    const [bookingsRes, feedbackRes] = await Promise.all([
+      api.get('/bookings', { signal }),
+      api.get('/feedbacks', { signal }),
+    ]);
+
+    const b = Array.isArray(bookingsRes.data?.bookings) ? (bookingsRes.data.bookings as Booking[]) : [];
+    const f = Array.isArray(feedbackRes.data?.feedbacks) ? (feedbackRes.data.feedbacks as Feedback[]) : [];
+    setBookings(b);
+    setFeedbacks(f);
+  };
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setIsLoading(true);
+
+    (async () => {
+      try {
+        await fetchData(controller.signal);
+      } catch (err) {
+        if (axios.isAxiosError(err) && err.code === 'ERR_CANCELED') return;
+        const message =
+          (axios.isAxiosError(err) ? (err.response?.data as any)?.message : null) ??
+          'Failed to load feedback.';
+        setError(String(message));
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+
+    return () => controller.abort();
+  }, []);
+
+  const completedStays = useMemo(() => bookings.filter((b) => b.status === 'checked_out'), [bookings]);
+  const reviewedReservationIds = useMemo(() => new Set(feedbacks.map((f) => f.reservation_id)), [feedbacks]);
+  const selectableStays = useMemo(
+    () => completedStays.filter((b) => !reviewedReservationIds.has(b.id)),
+    [completedStays, reviewedReservationIds]
+  );
+
+  useEffect(() => {
+    if (reservationId) return;
+    const first = selectableStays[0];
+    if (first) setReservationId(first.id);
+  }, [reservationId, selectableStays]);
+
   const handleSubmit = async () => {
-    if (!rating || !comment) return;
-    
+    if (!reservationId || !rating || !comment.trim()) return;
+
     setIsSubmitting(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    showToast("Thank you for your feedback!", "success");
-    setRating(0);
-    setComment('');
-    setIsSubmitting(false);
+    try {
+      await api.post('/feedbacks', {
+        reservation_id: reservationId,
+        rating,
+        comment: comment.trim(),
+      });
+      showToast('Thank you for your feedback!', 'success');
+      setRating(0);
+      setHoveredRating(0);
+      setComment('');
+      setReservationId(null);
+      await fetchData();
+    } catch (err) {
+      const message =
+        (axios.isAxiosError(err) ? (err.response?.data as any)?.message : null) ??
+        Object.values(((axios.isAxiosError(err) ? (err.response?.data as any)?.errors : {}) ?? {}) as Record<
+          string,
+          string[]
+        >)[0]?.[0] ??
+        'Failed to submit feedback.';
+      showToast(String(message), 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -46,106 +132,137 @@ export default function Feedback() {
         <p className="text-forest-700/70 mt-1">Share your experience to help us improve.</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Leave a Review Form */}
-        <div className="lg:col-span-1">
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-earth-100 sticky top-6">
-            <h2 className="text-lg font-semibold text-forest-900 mb-4 flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-earth-600" />
-              Leave a Review
-            </h2>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-forest-800 block mb-2">Select Recent Stay</label>
-                <select className="w-full px-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all bg-transparent appearance-none text-sm">
-                  <option>Forest Suite (Nov 15 - Nov 18)</option>
-                  <option>Garden Retreat (Aug 10 - Aug 12)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-forest-800 block mb-2">Overall Rating</label>
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      type="button"
-                      onClick={() => setRating(star)}
-                      onMouseEnter={() => setHoveredRating(star)}
-                      onMouseLeave={() => setHoveredRating(0)}
-                      className="p-1 focus:outline-none transition-transform hover:scale-110"
-                    >
-                      <Star 
-                        className={`w-8 h-8 ${
-                          star <= (hoveredRating || rating) 
-                            ? 'fill-amber-400 text-amber-400' 
-                            : 'text-earth-200'
-                        } transition-colors`} 
-                      />
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-forest-800 block mb-2">Your Comments</label>
-                <textarea 
-                  rows={4}
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  placeholder="Tell us about your stay..."
-                  className="w-full px-4 py-3 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all bg-transparent text-sm resize-none"
-                ></textarea>
-              </div>
-
-              <button 
-                onClick={handleSubmit}
-                className="w-full bg-forest-700 hover:bg-forest-800 text-white py-3 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={!rating || !comment || isSubmitting}
-              >
-                {isSubmitting ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <Send className="w-4 h-4" />
-                    Submit Review
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
+      {isLoading ? (
+        <div className="bg-white rounded-2xl shadow-sm border border-earth-100 p-12 text-center text-forest-700/70">
+          Loading feedback...
         </div>
+      ) : error ? (
+        <div className="bg-white rounded-2xl shadow-sm border border-earth-100 p-12 text-center text-red-600">{error}</div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-1">
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-earth-100 sticky top-6">
+              <h2 className="text-lg font-semibold text-forest-900 mb-4 flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-earth-600" />
+                Leave a Review
+              </h2>
 
-        {/* Past Reviews */}
-        <div className="lg:col-span-2 space-y-4">
-          <h2 className="text-lg font-semibold text-forest-900">Your Past Reviews</h2>
-          
-          <div className="space-y-4">
-            {reviews.map((review) => (
-              <div key={review.id} className="bg-white p-6 rounded-2xl shadow-sm border border-earth-100">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h3 className="font-medium text-forest-900">{review.room}</h3>
-                    <p className="text-xs text-forest-700/50 mt-1">{review.date}</p>
-                  </div>
-                  <div className="flex gap-0.5">
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-forest-800 block mb-2">Select Completed Stay</label>
+                  <select
+                    value={reservationId ?? ''}
+                    onChange={(e) => setReservationId(Number(e.target.value))}
+                    disabled={selectableStays.length === 0}
+                    className="w-full px-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all bg-transparent appearance-none text-sm disabled:bg-earth-50"
+                  >
+                    {selectableStays.length === 0 ? (
+                      <option value="">No completed stays available</option>
+                    ) : (
+                      selectableStays.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.room_name} ({formatDateShort(b.check_in_date)} - {formatDateShort(b.check_out_date)})
+                        </option>
+                      ))
+                    )}
+                  </select>
+                  {completedStays.length === 0 && (
+                    <p className="text-xs text-forest-700/60 mt-2">You can submit feedback after you check out.</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-forest-800 block mb-2">Overall Rating</label>
+                  <div className="flex gap-1">
                     {[1, 2, 3, 4, 5].map((star) => (
-                      <Star 
-                        key={star} 
-                        className={`w-4 h-4 ${star <= review.rating ? 'fill-amber-400 text-amber-400' : 'text-earth-200'}`} 
-                      />
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setRating(star)}
+                        onMouseEnter={() => setHoveredRating(star)}
+                        onMouseLeave={() => setHoveredRating(0)}
+                        className="p-1 focus:outline-none transition-transform hover:scale-110"
+                      >
+                        <Star
+                          className={`w-8 h-8 ${
+                            star <= (hoveredRating || rating) ? 'fill-amber-400 text-amber-400' : 'text-earth-200'
+                          } transition-colors`}
+                        />
+                      </button>
                     ))}
                   </div>
                 </div>
-                <p className="text-sm text-forest-700/80 leading-relaxed bg-earth-50/50 p-4 rounded-xl border border-earth-100/50">
-                  "{review.comment}"
-                </p>
+
+                <div>
+                  <label className="text-sm font-medium text-forest-800 block mb-2">Your Comments</label>
+                  <textarea
+                    rows={4}
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    placeholder="Tell us about your stay..."
+                    className="w-full px-4 py-3 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all bg-transparent text-sm resize-none"
+                  />
+                </div>
+
+                <button
+                  onClick={handleSubmit}
+                  className="w-full bg-forest-700 hover:bg-forest-800 text-white py-3 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!reservationId || !rating || !comment.trim() || isSubmitting || selectableStays.length === 0}
+                >
+                  {isSubmitting ? (
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      Submit Review
+                    </>
+                  )}
+                </button>
               </div>
-            ))}
+            </div>
+          </div>
+
+          <div className="lg:col-span-2 space-y-4">
+            <h2 className="text-lg font-semibold text-forest-900">Your Past Reviews</h2>
+
+            {feedbacks.length === 0 ? (
+              <div className="bg-white p-10 rounded-2xl shadow-sm border border-earth-100 text-center text-forest-700/70">
+                No reviews yet.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {feedbacks.map((review) => (
+                  <div key={review.id} className="bg-white p-6 rounded-2xl shadow-sm border border-earth-100">
+                    <div className="flex justify-between items-start mb-4 gap-4">
+                      <div>
+                        <h3 className="font-medium text-forest-900">{review.room_name}</h3>
+                        <p className="text-xs text-forest-700/50 mt-1">
+                          {review.check_in_date && review.check_out_date
+                            ? `${formatDateShort(review.check_in_date)} → ${formatDateShort(review.check_out_date)}`
+                            : review.reservation_ref}{' '}
+                          • {formatDateShort(review.created_at)}
+                        </p>
+                      </div>
+                      <div className="flex gap-0.5">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            className={`w-4 h-4 ${star <= review.rating ? 'fill-amber-400 text-amber-400' : 'text-earth-200'}`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-sm text-forest-700/80 leading-relaxed bg-earth-50/50 p-4 rounded-xl border border-earth-100/50">
+                      "{review.comment}"
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
+

@@ -4,6 +4,8 @@ import {
   AlertTriangle,
   Archive,
   Bath,
+  BedDouble,
+  CalendarDays,
   Coffee,
   Droplets,
   Edit,
@@ -31,6 +33,10 @@ const AMENITIES_LIST = [
   { id: 'ac', label: 'AC', icon: Wind },
   { id: 'wifi', label: 'WiFi', icon: Wifi },
   { id: 'tv', label: 'TV', icon: Tv },
+  { id: 'breakfast', label: 'Breakfast', icon: Coffee },
+  { id: 'king_bed', label: 'King Bed', icon: BedDouble },
+  { id: 'queen_bed', label: 'Queen Bed', icon: BedDouble },
+  { id: 'two_king_beds', label: '2 King Beds', icon: BedDouble },
   { id: 'forest_view', label: 'Forest View', icon: Eye },
   { id: 'garden_view', label: 'Garden View', icon: Eye },
   { id: 'tree_view', label: 'Tree View', icon: Eye },
@@ -62,6 +68,43 @@ type Room = {
 
 type ModalMode = 'add' | 'edit' | 'view';
 
+type AvailabilityDay = {
+  date: string;
+  total_rooms: number;
+  available_rooms: number;
+  booked_rooms: number;
+};
+
+type AvailabilityRoom = {
+  room_number: string;
+  display_name: string | null;
+  type: string;
+  floor: number;
+  capacity: number;
+  base_rate_cents: number;
+  currency: string;
+  amenities: string[];
+  archived_at: string | null;
+  available: boolean;
+  blocked_by: null | {
+    reservation_id: number;
+    reference: string;
+    guest_name: string | null;
+    guest_email: string | null;
+    check_in_date: string;
+    check_out_date: string;
+    status: string;
+    payment_status: string;
+  };
+};
+
+function toYmd(d: Date) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function formatMoney(cents: number, currency: string) {
   const value = (cents ?? 0) / 100;
   try {
@@ -87,12 +130,27 @@ export default function Rooms() {
   const [isSaving, setIsSaving] = useState(false);
   const [roomToArchive, setRoomToArchive] = useState<Room | null>(null);
 
+  const [availabilityMonth, setAvailabilityMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [calendarDays, setCalendarDays] = useState<AvailabilityDay[]>([]);
+  const [isLoadingCalendar, setIsLoadingCalendar] = useState(true);
+  const [calendarError, setCalendarError] = useState<string | null>(null);
+
+  const [availabilityRange, setAvailabilityRange] = useState({ checkIn: '', checkOut: '' });
+  const [availabilityRooms, setAvailabilityRooms] = useState<AvailabilityRoom[]>([]);
+  const [availabilitySummary, setAvailabilitySummary] = useState<{ total: number; available: number; booked: number } | null>(null);
+  const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null);
+
   const [form, setForm] = useState({
     room_number: '',
-    type: 'Forest Suite',
+    type: 'Forest View Suite',
     floor: 1,
     capacity: 2,
-    rate_pesos: 12500,
+    rate_pesos: 1250,
     status: 'Vacant',
     housekeeping_status: 'Clean',
     amenities: new Set<string>(),
@@ -169,6 +227,63 @@ export default function Rooms() {
     };
   }, [searchTerm, includeArchived]);
 
+  const fetchAvailabilityCalendar = async (signal?: AbortSignal, month?: string) => {
+    setCalendarError(null);
+    const res = await api.get('/admin/rooms/availability-calendar', {
+      params: {
+        month: month ?? availabilityMonth,
+        include_archived: includeArchived ? 1 : 0,
+      },
+      signal,
+    });
+
+    setCalendarDays(Array.isArray(res.data?.days) ? (res.data.days as AvailabilityDay[]) : []);
+  };
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setIsLoadingCalendar(true);
+
+    const timer = window.setTimeout(async () => {
+      try {
+        await fetchAvailabilityCalendar(controller.signal);
+      } catch (err) {
+        if (axios.isAxiosError(err) && err.code === 'ERR_CANCELED') return;
+        const message =
+          (axios.isAxiosError(err) ? (err.response?.data as any)?.message : null) ??
+          'Failed to load availability calendar.';
+        setCalendarError(String(message));
+      } finally {
+        setIsLoadingCalendar(false);
+      }
+    }, 200);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availabilityMonth, includeArchived]);
+
+  const fetchAvailability = async (checkIn: string, checkOut: string, signal?: AbortSignal) => {
+    setAvailabilityError(null);
+    const res = await api.get('/admin/rooms/availability', {
+      params: {
+        check_in_date: checkIn,
+        check_out_date: checkOut,
+        include_archived: includeArchived ? 1 : 0,
+      },
+      signal,
+    });
+
+    setAvailabilityRooms(Array.isArray(res.data?.rooms) ? (res.data.rooms as AvailabilityRoom[]) : []);
+    setAvailabilitySummary({
+      total: Number(res.data?.total_rooms ?? 0),
+      available: Number(res.data?.available_rooms ?? 0),
+      booked: Number(res.data?.booked_rooms ?? 0),
+    });
+  };
+
   const filteredRooms = useMemo(() => {
     const s = searchTerm.trim().toLowerCase();
     if (!s) return rooms;
@@ -182,13 +297,13 @@ export default function Rooms() {
     setSelectedRoom(null);
     setForm({
       room_number: '',
-      type: 'Forest Suite',
+      type: 'Forest View Suite',
       floor: 1,
       capacity: 2,
-      rate_pesos: 12500,
+      rate_pesos: 1250,
       status: 'Vacant',
       housekeeping_status: 'Clean',
-      amenities: new Set<string>(['ac', 'wifi', 'tv']),
+      amenities: new Set<string>(['king_bed', 'forest_view', 'wifi', 'breakfast']),
     });
     setShowModal(true);
   };
@@ -301,6 +416,82 @@ export default function Rooms() {
     }
   };
 
+  const calendarCells = useMemo(() => {
+    const [yearRaw, monthRaw] = availabilityMonth.split('-');
+    const year = Number(yearRaw);
+    const monthIndex = Number(monthRaw) - 1;
+    if (!yearRaw || !monthRaw || Number.isNaN(year) || Number.isNaN(monthIndex)) return [];
+
+    const dayMap = new Map<string, AvailabilityDay>(
+      calendarDays.map((d) => [d.date, d] as const)
+    );
+    const first = new Date(year, monthIndex, 1);
+    const startWeekday = first.getDay(); // 0 = Sun
+    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+
+    const cells: Array<
+      | { kind: 'empty'; key: string }
+      | { kind: 'day'; key: string; date: string; day: number; info: AvailabilityDay | null }
+    > = [];
+
+    for (let i = 0; i < startWeekday; i++) {
+      cells.push({ kind: 'empty', key: `e-${i}` });
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = `${availabilityMonth}-${String(day).padStart(2, '0')}`;
+      cells.push({ kind: 'day', key: date, date, day, info: dayMap.get(date) ?? null });
+    }
+
+    return cells;
+  }, [availabilityMonth, calendarDays]);
+
+  const handlePickCalendarDate = async (date: string) => {
+    setSelectedCalendarDate(date);
+
+    const start = new Date(`${date}T00:00:00`);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+
+    const checkIn = date;
+    const checkOut = toYmd(end);
+    setAvailabilityRange({ checkIn, checkOut });
+
+    setIsLoadingAvailability(true);
+    try {
+      await fetchAvailability(checkIn, checkOut);
+    } catch (err) {
+      const message =
+        (axios.isAxiosError(err) ? (err.response?.data as any)?.message : null) ??
+        'Failed to load availability.';
+      setAvailabilityError(String(message));
+    } finally {
+      setIsLoadingAvailability(false);
+    }
+  };
+
+  const handleCheckAvailability = async () => {
+    if (!availabilityRange.checkIn || !availabilityRange.checkOut) {
+      showToast('Please select check-in and check-out dates.', 'error');
+      return;
+    }
+
+    setSelectedCalendarDate(null);
+    setIsLoadingAvailability(true);
+    try {
+      await fetchAvailability(availabilityRange.checkIn, availabilityRange.checkOut);
+      showToast('Availability updated.', 'success');
+    } catch (err) {
+      const message =
+        (axios.isAxiosError(err) ? (err.response?.data as any)?.message : null) ??
+        'Failed to load availability.';
+      setAvailabilityError(String(message));
+      showToast(String(message), 'error');
+    } finally {
+      setIsLoadingAvailability(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -343,6 +534,192 @@ export default function Rooms() {
             />
             Show archived
           </label>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-earth-100 overflow-hidden">
+        <div className="p-6 border-b border-earth-100 bg-earth-50/50">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <CalendarDays className="w-5 h-5 text-earth-600" />
+                <h2 className="text-lg font-semibold text-forest-900">Availability Calendar</h2>
+              </div>
+              <p className="text-sm text-forest-700/70 mt-1">
+                Pick a month to view daily availability. Click any date to see which rooms are available for that night.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-forest-700/70">Month</span>
+              <input
+                type="month"
+                value={availabilityMonth}
+                onChange={(e) => setAvailabilityMonth(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-earth-200 bg-white text-sm text-forest-900 outline-none focus:border-forest-500"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <div className="grid grid-cols-7 gap-2 text-[10px] font-bold text-forest-700/50 uppercase tracking-widest mb-2">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+                <div key={d} className="px-2">
+                  {d}
+                </div>
+              ))}
+            </div>
+
+            {isLoadingCalendar ? (
+              <div className="p-8 text-center text-forest-700/70 bg-earth-50 rounded-2xl border border-earth-100">
+                Loading calendar...
+              </div>
+            ) : calendarError ? (
+              <div className="p-8 text-center text-red-600 bg-white rounded-2xl border border-earth-100">{calendarError}</div>
+            ) : (
+              <div className="grid grid-cols-7 gap-2">
+                {calendarCells.map((cell) => {
+                  if (cell.kind === 'empty') {
+                    return <div key={cell.key} className="h-20 rounded-2xl bg-transparent" />;
+                  }
+
+                  const info = cell.info;
+                  const total = info?.total_rooms ?? 0;
+                  const available = info?.available_rooms ?? 0;
+
+                  const tone =
+                    total > 0 && available === total
+                      ? 'bg-emerald-50 border-emerald-200'
+                      : available > 0
+                        ? 'bg-amber-50 border-amber-200'
+                        : 'bg-red-50 border-red-200';
+
+                  const selected = selectedCalendarDate === cell.date ? 'ring-2 ring-forest-600/30 border-forest-500' : '';
+
+                  return (
+                    <button
+                      type="button"
+                      key={cell.key}
+                      onClick={() => handlePickCalendarDate(cell.date)}
+                      className={`h-20 rounded-2xl border p-3 text-left transition-colors hover:bg-white ${tone} ${selected}`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="text-sm font-semibold text-forest-900">{cell.day}</div>
+                        {total > 0 && (
+                          <div className="text-[10px] font-bold text-forest-700/70 bg-white/70 px-2 py-0.5 rounded-full border border-earth-200">
+                            {available}/{total}
+                          </div>
+                        )}
+                      </div>
+                      <div className="mt-2 text-[10px] text-forest-700/70">
+                        {total === 0 ? 'No rooms' : available === total ? 'All available' : available > 0 ? 'Some booked' : 'Fully booked'}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <div className="bg-earth-50 rounded-2xl border border-earth-100 p-4 space-y-3">
+              <div className="text-xs font-semibold text-forest-900">Check availability (date range)</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-forest-700/50 uppercase tracking-widest">Check-in</label>
+                  <input
+                    type="date"
+                    value={availabilityRange.checkIn}
+                    onChange={(e) => setAvailabilityRange((p) => ({ ...p, checkIn: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-earth-200 bg-white text-sm outline-none focus:border-forest-500"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-forest-700/50 uppercase tracking-widest">Check-out</label>
+                  <input
+                    type="date"
+                    value={availabilityRange.checkOut}
+                    onChange={(e) => setAvailabilityRange((p) => ({ ...p, checkOut: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-earth-200 bg-white text-sm outline-none focus:border-forest-500"
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleCheckAvailability}
+                className="w-full px-4 py-2.5 rounded-xl bg-forest-700 hover:bg-forest-800 text-white text-sm font-medium transition-colors disabled:opacity-60"
+                disabled={isLoadingAvailability}
+              >
+                {isLoadingAvailability ? 'Checking...' : 'Check Availability'}
+              </button>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-earth-100 p-4">
+              <div className="text-xs font-semibold text-forest-900">Summary</div>
+              <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                <div className="bg-earth-50 rounded-xl border border-earth-100 p-3">
+                  <div className="text-[10px] font-bold text-forest-700/50 uppercase tracking-widest">Total</div>
+                  <div className="text-lg font-serif font-semibold text-forest-900">{availabilitySummary?.total ?? '—'}</div>
+                </div>
+                <div className="bg-emerald-50 rounded-xl border border-emerald-100 p-3">
+                  <div className="text-[10px] font-bold text-emerald-700/60 uppercase tracking-widest">Available</div>
+                  <div className="text-lg font-serif font-semibold text-forest-900">{availabilitySummary?.available ?? '—'}</div>
+                </div>
+                <div className="bg-amber-50 rounded-xl border border-amber-100 p-3">
+                  <div className="text-[10px] font-bold text-amber-700/60 uppercase tracking-widest">Booked</div>
+                  <div className="text-lg font-serif font-semibold text-forest-900">{availabilitySummary?.booked ?? '—'}</div>
+                </div>
+              </div>
+              {availabilityError && <div className="mt-3 text-sm text-red-600">{availabilityError}</div>}
+            </div>
+
+            <div className="bg-white rounded-2xl border border-earth-100 overflow-hidden">
+              <div className="p-4 border-b border-earth-100 bg-earth-50/50">
+                <div className="text-xs font-semibold text-forest-900">Rooms for selected dates</div>
+                <div className="text-[10px] text-forest-700/60 mt-1">
+                  {availabilityRange.checkIn && availabilityRange.checkOut
+                    ? `${availabilityRange.checkIn} → ${availabilityRange.checkOut}`
+                    : 'Pick a date from the calendar or choose a range.'}
+                </div>
+              </div>
+              <div className="max-h-[420px] overflow-auto divide-y divide-earth-100">
+                {availabilityRooms.length === 0 ? (
+                  <div className="p-6 text-sm text-forest-700/70">No data yet.</div>
+                ) : (
+                  availabilityRooms.map((r) => (
+                    <div key={r.room_number} className="p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="font-semibold text-forest-900">{r.display_name ?? r.type}</div>
+                          <div className="text-xs text-forest-700/60">Room {r.room_number} • {r.capacity} pax</div>
+                        </div>
+                        {r.available ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                            Available
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                            Booked
+                          </span>
+                        )}
+                      </div>
+
+                      {!r.available && r.blocked_by && (
+                        <div className="mt-3 bg-earth-50 border border-earth-100 rounded-xl p-3 text-xs text-forest-800/80">
+                          <div className="font-semibold text-forest-900">{r.blocked_by.reference}</div>
+                          <div className="mt-1">{r.blocked_by.guest_name ?? '—'} • {r.blocked_by.guest_email ?? '—'}</div>
+                          <div className="mt-1">{r.blocked_by.check_in_date} → {r.blocked_by.check_out_date}</div>
+                          <div className="mt-1">{r.blocked_by.status} • {r.blocked_by.payment_status}</div>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
