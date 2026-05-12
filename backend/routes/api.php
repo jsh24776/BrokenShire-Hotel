@@ -41,6 +41,7 @@ Route::prefix('admin')->group(function () {
         Route::post('/logout', [AdminAuthController::class, 'logout']);
 
         Route::get('/guests', [AdminGuestController::class, 'index']);
+        Route::post('/guests', [AdminGuestController::class, 'store']);
         Route::get('/guests/{user}', [AdminGuestController::class, 'show']);
         Route::get('/guests/{user}/history', [AdminGuestController::class, 'history']);
 

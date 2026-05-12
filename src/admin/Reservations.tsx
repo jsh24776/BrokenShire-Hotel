@@ -1,11 +1,13 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState, useRef } from 'react';
 import axios from 'axios';
 import {
   AlertTriangle,
   Calendar,
   CheckCircle,
   Edit,
+  FileText,
   Filter,
+  LogIn,
   MoreVertical,
   Plus,
   Search,
@@ -86,6 +88,10 @@ export default function Reservations() {
   const [lastPage, setLastPage] = useState(1);
 
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [showFilters, setShowFilters] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [roomTypeFilter, setRoomTypeFilter] = useState('');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode>('add');
@@ -95,6 +101,9 @@ export default function Reservations() {
   const [guestSearch, setGuestSearch] = useState('');
   const [guestResults, setGuestResults] = useState<Guest[]>([]);
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
+
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const [form, setForm] = useState({
     room_number: '',
@@ -151,7 +160,14 @@ export default function Reservations() {
   const fetchReservations = async (signal?: AbortSignal) => {
     setError(null);
     const res = await api.get('/admin/reservations', {
-      params: { search: searchTerm, per_page: 20, page },
+      params: {
+        search: searchTerm,
+        per_page: 20,
+        page,
+        status: statusFilter,
+        room_type: roomTypeFilter,
+        sort_dir: sortDir,
+      },
       signal,
     });
 
@@ -185,7 +201,30 @@ export default function Reservations() {
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [searchTerm, page]);
+  }, [searchTerm, page, statusFilter, roomTypeFilter, sortDir]);
+
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest('[data-res-filters-root="1"]')) return;
+      setShowFilters(false);
+    };
+
+    if (showFilters) document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [showFilters]);
+
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenuId(null);
+      }
+    };
+
+    if (openMenuId !== null) document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [openMenuId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -319,6 +358,26 @@ export default function Reservations() {
     }
   };
 
+  const checkInReservation = async (r: Reservation) => {
+    try {
+      await api.patch(`/admin/reservations/${r.id}`, { status: 'checked_in' });
+      showToast('Guest checked in successfully.', 'success');
+      setOpenMenuId(null);
+      await fetchReservations();
+    } catch (err) {
+      const message =
+        (axios.isAxiosError(err) ? (err.response?.data as any)?.message : null) ??
+        'Failed to check in guest.';
+      showToast(String(message), 'error');
+    }
+  };
+
+  const viewReceipt = (r: Reservation) => {
+    showToast('Receipt for RES-' + String(r.id).padStart(4, '0') + ': ' + formatMoney(r.amount_cents, r.currency), 'info');
+    setOpenMenuId(null);
+    // TODO: Implement receipt viewing modal or PDF generation
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -340,7 +399,7 @@ export default function Reservations() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-forest-800/40" />
           <input
             type="text"
-            placeholder="Search guest, email, room, type..."
+            placeholder="Search RES ID, guest, email, room, type..."
             value={searchTerm}
             onChange={(e) => {
               setPage(1);
@@ -350,10 +409,74 @@ export default function Reservations() {
           />
         </div>
         <div className="flex gap-2">
-          <button className="flex items-center gap-2 px-4 py-2 border border-earth-200 rounded-xl text-forest-800 hover:bg-earth-50 transition-colors">
-            <Filter className="w-4 h-4" />
-            Filter
-          </button>
+          <div className="relative" data-res-filters-root="1">
+            <button
+              type="button"
+              onClick={() => setShowFilters((s) => !s)}
+              className="flex items-center gap-2 px-4 py-2 border border-earth-200 rounded-xl text-forest-800 hover:bg-earth-50 transition-colors"
+            >
+              <Filter className="w-4 h-4" />
+              Filter
+            </button>
+
+            {showFilters && (
+              <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl border border-earth-200 shadow-xl p-4 z-20">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-sm font-semibold text-forest-900">Filters</div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStatusFilter('');
+                      setRoomTypeFilter('');
+                      setPage(1);
+                    }}
+                    className="text-xs text-forest-700/70 hover:text-forest-900"
+                  >
+                    Clear
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3">
+                  <label className="text-xs font-medium text-forest-800">
+                    Status
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => {
+                        setPage(1);
+                        setStatusFilter(e.target.value);
+                      }}
+                      className="mt-1 w-full px-3 py-2 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none"
+                    >
+                      <option value="">All</option>
+                      <option value="pending">Pending</option>
+                      <option value="confirmed">Confirmed</option>
+                      <option value="checked_out">Checked out</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </label>
+
+                  <label className="text-xs font-medium text-forest-800">
+                    Room Type
+                    <select
+                      value={roomTypeFilter}
+                      onChange={(e) => {
+                        setPage(1);
+                        setRoomTypeFilter(e.target.value);
+                      }}
+                      className="mt-1 w-full px-3 py-2 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none"
+                    >
+                      <option value="">All</option>
+                      {Array.from(new Set(rooms.map((r) => r.type))).map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -372,7 +495,20 @@ export default function Reservations() {
                   <th className="p-4 font-medium">Reservation</th>
                   <th className="p-4 font-medium">Guest</th>
                   <th className="p-4 font-medium">Room</th>
-                  <th className="p-4 font-medium">Dates</th>
+                  <th className="p-4 font-medium">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPage(1);
+                        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+                      }}
+                      className="inline-flex items-center gap-2 hover:text-forest-900 transition-colors"
+                      title="Sort by check-in date"
+                    >
+                      Dates
+                      <span className="text-xs text-forest-800/50">{sortDir === 'asc' ? '↑' : '↓'}</span>
+                    </button>
+                  </th>
                   <th className="p-4 font-medium">Amount</th>
                   <th className="p-4 font-medium">Status</th>
                   <th className="p-4 font-medium text-right">Actions</th>
@@ -423,9 +559,41 @@ export default function Reservations() {
                         >
                           <X className="w-4 h-4" />
                         </button>
-                        <button className="p-1.5 text-forest-800 hover:bg-forest-50 rounded-lg transition-colors" title="More">
-                          <MoreVertical className="w-4 h-4" />
-                        </button>
+                        <div className="relative" ref={openMenuId === r.id ? menuRef : undefined}>
+                          <button
+                            onClick={() => setOpenMenuId(openMenuId === r.id ? null : r.id)}
+                            className="p-1.5 text-forest-800 hover:bg-forest-50 rounded-lg transition-colors"
+                            title="More actions"
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
+
+                          {openMenuId === r.id && (
+                            <motion.div
+                              initial={{ opacity: 0, scale: 0.95, y: -8 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.95, y: -8 }}
+                              className="absolute right-0 mt-2 w-48 bg-white rounded-xl border border-earth-200 shadow-lg overflow-hidden z-30"
+                            >
+                              <button
+                                onClick={() => viewReceipt(r)}
+                                className="w-full text-left px-4 py-2.5 flex items-center gap-3 hover:bg-earth-50 transition-colors text-sm text-forest-800 border-b border-earth-100"
+                              >
+                                <FileText className="w-4 h-4 text-earth-600" />
+                                <span>View Receipt</span>
+                              </button>
+                              {r.status !== 'checked_out' && r.status !== 'cancelled' && (
+                                <button
+                                  onClick={() => checkInReservation(r)}
+                                  className="w-full text-left px-4 py-2.5 flex items-center gap-3 hover:bg-earth-50 transition-colors text-sm text-forest-800"
+                                >
+                                  <LogIn className="w-4 h-4 text-forest-600" />
+                                  <span>Check-in Guest</span>
+                                </button>
+                              )}
+                            </motion.div>
+                          )}
+                        </div>
                       </div>
                     </td>
                   </tr>

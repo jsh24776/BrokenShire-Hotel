@@ -18,14 +18,37 @@ class AdminReservationController extends Controller
     public function index(Request $request)
     {
         $search = trim((string) $request->query('search', ''));
+        $status = trim((string) $request->query('status', ''));
+        $roomType = trim((string) $request->query('room_type', ''));
+        $sortDir = strtolower(trim((string) $request->query('sort_dir', 'desc')));
+        $sortDir = in_array($sortDir, ['asc', 'desc'], true) ? $sortDir : 'desc';
+
         $perPage = (int) $request->query('per_page', 20);
         $perPage = max(1, min(100, $perPage));
 
         $query = Reservation::query()
             ->with(['user:id,name,email', 'invoice:id,reservation_id,invoice_number,payment_status,payment_method,payment_reference,paid_at'])
-            ->orderByDesc('check_in_date');
+            ->orderBy('check_in_date', $sortDir);
+
+        if ($status !== '') {
+            $query->where('status', $status);
+        }
+
+        if ($roomType !== '') {
+            $query->where('room_type', $roomType);
+        }
 
         if ($search !== '') {
+            $searchReservationId = null;
+            $normalized = preg_replace('/^RES-?/i', '', $search) ?? $search;
+            $normalized = ltrim($normalized);
+            if ($normalized !== '' && ctype_digit($normalized)) {
+                $searchReservationId = (int) ltrim($normalized, '0');
+                if ($searchReservationId === 0 && $normalized !== '0') {
+                    $searchReservationId = null;
+                }
+            }
+
             $query->where(function ($q) use ($search) {
                 $q->where('room_number', 'like', "%{$search}%")
                     ->orWhere('room_type', 'like', "%{$search}%")
@@ -34,6 +57,10 @@ class AdminReservationController extends Controller
                             ->orWhere('email', 'like', "%{$search}%");
                     });
             });
+
+            if ($searchReservationId !== null) {
+                $query->orWhere('id', $searchReservationId);
+            }
         }
 
         return response()->json($query->paginate($perPage));

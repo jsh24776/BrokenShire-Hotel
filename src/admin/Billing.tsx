@@ -482,20 +482,21 @@ export default function Billing() {
                         >
                           <FileText className="w-4 h-4" /> View
                         </button>
-                        {inv.payment_status !== 'paid' ? (
+                        {['paid', 'refund_pending'].includes(inv.payment_status) ? (
+                          <button
+                            disabled={isSaving}
+                            onClick={() => handleRefund(inv)}
+                            className="p-1.5 text-red-700 hover:bg-red-50 rounded-lg transition-colors inline-flex items-center gap-1 text-xs font-medium border border-earth-200 px-3 py-1.5 disabled:opacity-60"
+                            title={inv.payment_status === 'refund_pending' ? 'Process refund for cancelled reservation' : 'Refund paid invoice'}
+                          >
+                            <RefreshCcw className="w-4 h-4" /> {inv.payment_status === 'refund_pending' ? 'Process Refund' : 'Refund'}
+                          </button>
+                        ) : (
                           <button
                             onClick={() => openRecordPayment(inv)}
                             className="p-1.5 text-forest-800 hover:bg-forest-50 rounded-lg transition-colors inline-flex items-center gap-1 text-xs font-medium border border-earth-200 px-3 py-1.5"
                           >
                             <CreditCard className="w-4 h-4" /> Pay
-                          </button>
-                        ) : (
-                          <button
-                            disabled={isSaving}
-                            onClick={() => handleRefund(inv)}
-                            className="p-1.5 text-red-700 hover:bg-red-50 rounded-lg transition-colors inline-flex items-center gap-1 text-xs font-medium border border-earth-200 px-3 py-1.5 disabled:opacity-60"
-                          >
-                            Refund
                           </button>
                         )}
                         <button

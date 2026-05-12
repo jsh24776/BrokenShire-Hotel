@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { Search, Mail, Phone, User, X, RefreshCw } from 'lucide-react';
+import { Search, Mail, Phone, User, X, RefreshCw, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useToast } from '../components/ToastContext';
 import { api } from '../lib/api';
@@ -40,6 +40,34 @@ export default function Guests() {
   const [history, setHistory] = useState<Reservation[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
+
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [createForm, setCreateForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    password: '',
+    password_confirmation: '',
+  });
+
+  const getErrorMessage = (err: unknown, fallback: string) => {
+    if (!axios.isAxiosError(err)) return fallback;
+    const data: any = err.response?.data;
+
+    if (data?.errors && typeof data.errors === 'object') {
+      const merged = Object.values(data.errors)
+        .flatMap((v: any) => (Array.isArray(v) ? v : [v]))
+        .map((v: any) => String(v))
+        .filter(Boolean)
+        .join(' ');
+      if (merged) return merged;
+    }
+
+    return String(data?.message ?? fallback);
+  };
 
   const fetchGuests = async (search: string, signal?: AbortSignal) => {
     setError(null);
@@ -87,7 +115,7 @@ export default function Guests() {
     const s = searchTerm.trim().toLowerCase();
     if (!s) return guests;
     return guests.filter((g) =>
-      [g.name, g.email, g.phone, String(g.id)].some((v) => v.toLowerCase().includes(s))
+      [g.name, g.email, g.phone, g.address, String(g.id)].some((v) => v.toLowerCase().includes(s))
     );
   }, [guests, searchTerm]);
 
@@ -99,23 +127,36 @@ export default function Guests() {
           <p className="text-forest-700/70 mt-1">All registered guests (from the database).</p>
         </div>
 
-        <button
-          onClick={async () => {
-            try {
-              setIsLoading(true);
-              await fetchGuests(searchTerm);
-              showToast('Guest list refreshed.', 'success');
-            } catch {
-              showToast('Failed to refresh guest list.', 'error');
-            } finally {
-              setIsLoading(false);
-            }
-          }}
-          className="bg-white hover:bg-earth-50 text-forest-800 px-4 py-2 rounded-xl font-medium transition-colors flex items-center gap-2 border border-earth-100"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              setCreateError(null);
+              setShowCreateModal(true);
+            }}
+            className="bg-forest-700 hover:bg-forest-800 text-white px-4 py-2 rounded-xl font-medium transition-colors flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Create Guest
+          </button>
+
+          <button
+            onClick={async () => {
+              try {
+                setIsLoading(true);
+                await fetchGuests(searchTerm);
+                showToast('Guest list refreshed.', 'success');
+              } catch {
+                showToast('Failed to refresh guest list.', 'error');
+              } finally {
+                setIsLoading(false);
+              }
+            }}
+            className="bg-white hover:bg-earth-50 text-forest-800 px-4 py-2 rounded-xl font-medium transition-colors flex items-center gap-2 border border-earth-100"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-earth-100 flex flex-col sm:flex-row gap-4 justify-between">
@@ -124,7 +165,7 @@ export default function Guests() {
           <input
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search name, email, phone, ID..."
+            placeholder="Search name, email, phone, address, ID..."
             className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all"
           />
         </div>
@@ -340,6 +381,167 @@ export default function Guests() {
                   )}
                 </div>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showCreateModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowCreateModal(false)}
+              className="absolute inset-0 bg-forest-900/40 backdrop-blur-sm"
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.98, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.98, y: 10 }}
+              className="bg-white w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden relative z-10 border border-earth-100"
+            >
+              <div className="p-6 border-b border-earth-100 flex justify-between items-center bg-earth-50/50">
+                <h2 className="text-xl font-serif font-semibold text-forest-900">Create Guest</h2>
+                <button
+                  onClick={() => setShowCreateModal(false)}
+                  className="p-2 hover:bg-earth-100 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5 text-forest-800/50" />
+                </button>
+              </div>
+
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setCreateError(null);
+                  setIsCreating(true);
+
+                  try {
+                    await api.post('/admin/guests', createForm);
+                    showToast('Guest created.', 'success');
+                    setShowCreateModal(false);
+                    setCreateForm({
+                      name: '',
+                      email: '',
+                      phone: '',
+                      address: '',
+                      password: '',
+                      password_confirmation: '',
+                    });
+                    await fetchGuests(searchTerm);
+                  } catch (err) {
+                    const message = getErrorMessage(err, 'Failed to create guest.');
+                    setCreateError(message);
+                    showToast(message, 'error');
+                  } finally {
+                    setIsCreating(false);
+                  }
+                }}
+                className="p-8 space-y-5"
+              >
+                {createError && (
+                  <div className="text-sm text-red-700 bg-red-50 border border-red-100 p-3 rounded-xl">
+                    {createError}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-forest-700 mb-2">Full Name</label>
+                    <input
+                      value={createForm.name}
+                      onChange={(e) => setCreateForm((p) => ({ ...p, name: e.target.value }))}
+                      required
+                      className="w-full px-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all"
+                      placeholder="Juan Dela Cruz"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-forest-700 mb-2">Email</label>
+                    <input
+                      type="email"
+                      value={createForm.email}
+                      onChange={(e) => setCreateForm((p) => ({ ...p, email: e.target.value }))}
+                      required
+                      className="w-full px-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all"
+                      placeholder="guest@example.com"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-forest-700 mb-2">Phone</label>
+                    <input
+                      value={createForm.phone}
+                      onChange={(e) => setCreateForm((p) => ({ ...p, phone: e.target.value }))}
+                      required
+                      className="w-full px-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all"
+                      placeholder="+63 9XX XXX XXXX"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-forest-700 mb-2">Temporary Password</label>
+                    <input
+                      type="password"
+                      value={createForm.password}
+                      onChange={(e) => setCreateForm((p) => ({ ...p, password: e.target.value }))}
+                      required
+                      className="w-full px-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all"
+                      placeholder="••••••••"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-forest-700 mb-2">Confirm Password</label>
+                    <input
+                      type="password"
+                      value={createForm.password_confirmation}
+                      onChange={(e) =>
+                        setCreateForm((p) => ({ ...p, password_confirmation: e.target.value }))
+                      }
+                      required
+                      className="w-full px-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all"
+                      placeholder="••••••••"
+                    />
+                  </div>
+                  <div />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-forest-700 mb-2">Address</label>
+                  <textarea
+                    value={createForm.address}
+                    onChange={(e) => setCreateForm((p) => ({ ...p, address: e.target.value }))}
+                    required
+                    rows={3}
+                    className="w-full px-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all resize-none"
+                    placeholder="Complete address"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateModal(false)}
+                    className="px-4 py-2 rounded-xl border border-earth-200 hover:bg-earth-50 text-forest-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isCreating}
+                    className="px-5 py-2.5 rounded-xl bg-forest-700 hover:bg-forest-800 text-white font-medium disabled:opacity-60"
+                  >
+                    {isCreating ? 'Creating...' : 'Create Guest'}
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}

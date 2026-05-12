@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Reservation;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rules\Password;
 
 class AdminGuestController extends Controller
 {
@@ -23,11 +25,34 @@ class AdminGuestController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                     ->orWhere('email', 'like', "%{$search}%")
-                    ->orWhere('phone', 'like', "%{$search}%");
+                    ->orWhere('phone', 'like', "%{$search}%")
+                    ->orWhere('address', 'like', "%{$search}%");
             });
         }
 
         return response()->json($query->paginate($perPage));
+    }
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
+            'phone' => ['required', 'string', 'max:50'],
+            'address' => ['required', 'string', 'max:2000'],
+            'password' => ['required', 'confirmed', Password::defaults()],
+        ]);
+
+        $guest = User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'phone' => $validated['phone'],
+            'address' => $validated['address'],
+            'role' => 'guest',
+            'password' => Hash::make($validated['password']),
+        ]);
+
+        return response()->json(['guest' => $guest], 201);
     }
 
     public function show(User $user)

@@ -3,13 +3,16 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class ChatbotTest extends TestCase
 {
-    public function test_chat_endpoint_returns_json_shape()
+    use RefreshDatabase;
+
+    public function test_chat_endpoint_returns_json_shape(): void
     {
         Http::fake([
             'https://api.groq.com/openai/v1/chat/completions' => Http::response([
@@ -53,4 +56,3 @@ class ChatbotTest extends TestCase
         ]);
     }
 }
-

@@ -1,0 +1,336 @@
+
+
+--- Page 1 ---
+    Group  Name  VS  
+Proponents  John  Paul  Domong-as  Julie  Anne  Pesana  Joshua  Regidor  
+Module  Name  Dashboard/  Overview   CS17L:  SOFTWARE  ENGINEERING  2            Milestone  6:  Functional  test  case  specification   SUMMARY  OF  TEST  CASES  EXECUTED   
+SCENARIOS  EXPECTED  RESULT  
+ACTUAL  RESULT  TEST  RESULT  
+ACTION  TAKEN  
+TC-DASH-059:  KPI  Card  Percentage  Calculation  
+The  "12%  vs  last  month"  indicator  should  accurately  reflect  the  mathematical  difference  between  months.  
+Indicator  displays  correct  percentage  trend  based  on  database  values.  
+PASSED  None  required  
+TC-DASH-060:  Pending  Payments  Alert  
+If  a  new  booking  is  made  without  payment,  the  "Pending  Payments"  card  count  should  increment  by  1.  
+Card  count  increased  from  12  to  13  immediately  after  unpaid  booking.  
+PASSED  None  required  
+TC-DASH-061:  Revenue  by  Room  Type  Filter  
+The  Donut  chart  should  dynamically  update  if  a  room  is  changed  from  
+Chart  segments  adjusted  to  reflect  the  new  revenue  distribution.  
+PASSED  None  required  
+
+
+--- Page 2 ---
+"Canopy  Villa"  to  "Forest  Suite."  
+TC-DASH-062:  Time  Range  Toggle  
+Switching  the  Weekly  Revenue  dropdown  from  "Last  7  Days"  to  "Last  30  Days."  
+Graph  axis  and  data  points  refreshed  to  show  the  extended  timeline.  
+PASSED  None  required  
+TC-DASH-063:  Zero  State  Handling  
+If  there  are  no  bookings  for  a  specific  room  type,  that  type  should  not  appear  in  the  "Revenue  by  Room  Type"  legend.  
+Donut  chart  correctly  hid  the  "0%"  category.  
+PASSED  None  required  
+TC-DASH-064:  Sidebar  Navigation  Responsiveness  
+Clicking  "Billing"  or  "Reports"  from  the  dashboard  sidebar  should  load  the  page  in  under  2  seconds.  
+Navigation  is  smooth  with  no  broken  links  or  infinite  loading.  
+PASSED  None  required  
+TC-DASH-065:  Admin  Profile  Display  
+The  top-right  avatar  should  display  the  correct  initials  "AD"  for  "Admin  User."  
+Display  matches  the  logged-in  user  credentials.  
+PASSED  None  required  
+
+
+--- Page 3 ---
+TC-DASH-066:  Daily  Revenue  Reset  
+At  12:00  AM,  the  "Daily  Revenue"  card  should  reset  to  ₱0  and  show  a  trend  comparison  to  the  previous  day.  
+Counter  reset  correctly  and  compared  current  ₱0  to  yesterday's  ₱28,450.  
+PASSED  None  required  
+TC-DASH-067:  Occupancy  Rate  Logic  
+Occupancy  Rate  %  should  be  calculated  as  (Booked  Rooms  /  Total  Rooms)  *  100.  
+The  82%  display  matches  the  actual  physical  room  availability  in  the  database.  
+PASSED  None  required  
+                             
+
+
+--- Page 4 ---
+Group  Name  VS  
+Proponents  John  Paul  Domong-as  Julie  Anne  Pesana  Joshua  Regidor  
+Module  Name  Room  Reservation   CS17L:  SOFTWARE  ENGINEERING  2            Milestone  6:  Functional  test  case  specification   
+SCENARIOS  EXPECTED  RESULT  ACTUAL  RESULT  
+TEST  RESULT  
+ACTION  TAKEN  
+TC-RES-069:  Global  Search  Functionality  
+Typing  "Gabriel"  in  the  search  bar  should  filter  the  table  to  show  only  his  6  reservations.  
+Table  filtered  correctly  to  show  matching  records  for  "Gabriel".  
+PASSED  None  required  
+TC-RES-070:  Search  by  Room  Number  
+Searching  for  "101"  should  display  all  historical  and  future  bookings  for  that  specific  room.  
+Results  showed  only  Room  101  (Forest  Suite/Forest  View  Suite).  
+PASSED  None  required  
+TC-RES-071:  Status  Color  Coding  
+Confirmed  reservations  should  show  a  Green  badge;  Cancelled  should  show  a  Red  badge.  
+UI  badges  correctly  color-coded  as  seen  in  RES-0012  vs  RES-0010.  
+PASSED  None  required  
+
+
+--- Page 5 ---
+TC-RES-072:  New  Booking  Modal  
+Clicking  the  "+  New  Booking"  button  should  open  a  form/overlay.  
+Modal  opened  successfully  with  all  required  input  fields.  
+PASSED  None  required  
+TC-RES-073:  Action  Button:  Edit  
+Clicking  the  "Edit"  (pencil)  icon  should  allow  modification  of  dates  or  room  assignments.  
+Edit  mode  activated;  changes  were  savable  to  the  database.  
+PASSED  None  required  
+TC-RES-074:  Action  Button:  Cancel  
+Clicking  the  "X"  icon  on  a  Confirmed  booking  should  trigger  a  cancellation  prompt.  
+Prompt  appeared;  status  changed  to  "Cancelled"  after  confirmation.  
+PASSED  None  required  
+TC-RES-075:  Date  Range  Sorting  
+Clicking  the  "Dates"  column  header  should  sort  reservations  chronologically.  
+Reservations  re-ordered  from  earliest  to  latest  dates.  
+PASSED  None  required  
+TC-RES-076:  Amount  Formatting  
+Amounts  should  display  the  Peso  symbol  (₱)  and  two  decimal  places  (e.g.,  ₱50,000.00).  
+Currency  formatting  is  consistent  across  all  rows.  
+PASSED  None  required  
+
+
+--- Page 6 ---
+TC-RES-077:  Filter  Menu  Toggle  
+Clicking  the  "Filter"  button  should  expand  a  menu  for  advanced  criteria  (e.g.,  filter  by  Status).  
+The  filter  menu  appeared  with  options  for  Status  and  Room  Type.  
+PASSED  None  required  
+TC-RES-078:  Data  Consistency  (Guest)  
+Ensure  the  email  under  the  guest  name  (e.g.,  joshuaregidor57@gmail.com)  is  pulled  from  the  Guest  Directory.  
+Guest  email  correctly  mapped  from  the  centralized  Guest  profile.  
+PASSED  None  required  
+TC-RES-079:  Room  Type  Association  
+Room  "102"  must  always  be  associated  with  "Garden  Retreat"  as  per  the  inventory.  
+Room  types  match  the  room  numbers  correctly  in  the  table.  
+PASSED  None  required  
+TC-RES-080:  "More"  Actions  Menu  
+Clicking  the  three-dot  vertical  menu  should  show  additional  options  like  "View  Receipt"  or  "Check-in".  
+The  dropdown  menu  displayed  extended  administrative  actions.  
+PASSED  None  required  
+             
+
+
+--- Page 7 ---
+ Group  Name  VS  
+Proponents  John  Paul  Domong-as  Julie  Anne  Pesana  Joshua  Regidor  
+Module  Name  Guest  Directory   CS17L:  SOFTWARE  ENGINEERING  2            Milestone  6:  Functional  test  case  specification   
+SCENARIOS  EXPECTED  RESULT  ACTUAL  RESULT  TEST  RESULT  
+ACTION  TAKEN  
+TC-GUEST-081:  Multi-Criteria  Search  
+Searching  by  "0993"  (Phone)  or  "Davao"  (Address)  should  filter  the  list  accurately.  
+List  filtered  correctly  for  both  partial  phone  numbers  and  partial  addresses.  
+PASSED  None  required  
+TC-GUEST-082:  Unique  Guest  ID  
+The  system  must  assign  a  unique  ID  to  every  guest  (e.g.,  ID:  2,  ID:  3).  
+No  two  guests  share  the  same  ID  in  the  directory.  
+PASSED  None  required  
+TC-GUEST-083:  Contact  Data  Rendering  
+Email  and  Phone  must  be  displayed  with  their  respective  icons  (Envelope/Receiver).  
+Icons  are  aligned  and  display  correctly  next  to  contact  strings.  
+PASSED  None  required  
+TC-GUEST-084:  Refresh  Button  Logic  
+Clicking  "Refresh"  should  pull  the  latest  registrations  from  the  database  without  a  full  page  reload.  
+List  updated  with  new  entries  immediately  after  clicking.  
+PASSED  None  required  
+
+
+--- Page 8 ---
+TC-GUEST-085:  Registration  Date  Format  
+Dates  must  follow  the  MM/DD/YYYY  format  as  shown  (e.g.,  3/13/2026).  
+The  date  format  is  consistent  for  all  registered  guests.  
+PASSED  None  required  
+TC-GUEST-086:  Address  String  Concatenation  
+The  address  field  should  properly  join  Street,  Barangay,  and  City  (e.g.,  Seminary  Road,  Talomo  Davao  City).  
+Address  is  readable  and  formatted  with  correct  spacing/commas.  
+PASSED  None  required  
+TC-GUEST-087:  Guest  Profile  Navigation  
+Clicking  on  a  guest's  name  (e.g.,  Elyze  Seplon)  should  redirect  to  their  detailed  stay  history.  
+System  navigated  to  the  individual  guest  profile  view.  
+PASSED  None  required  
+TC-GUEST-088:  Sorting  by  Registration  Date  
+Clicking  the  "REGISTERED"  header  should  toggle  between  oldest  and  newest  sign-ups.  
+List  re-ordered  correctly  based  on  the  timestamp.  
+PASSED  None  required  
+TC-GUEST-089:  Empty  Search  State  
+Enter  a  name  that  doesn't  exist  (e.g.,  "XYZ123")  in  the  search  bar.  
+The  system  displays  "No  guests  found"  or  an  empty  table  state.  
+PASSED  None  required  
+TC-GUEST-090:  Logout  Session  Security  
+Clicking  the  "Logout"  button  at  the  bottom  left  should  end  the  session  immediately.  
+User  redirected  to  login  screen;  back  button  does  not  return  to  directory.  
+PASSED  None  required  
+
+
+--- Page 9 ---
+ Group  Name  VS  
+Proponents  John  Paul  Domong-as  Julie  Anne  Pesana  Joshua  Regidor  
+Module  Name  Room  Inventory   CS17L:  SOFTWARE  ENGINEERING  2            Milestone  6:  Functional  test  case  specification   
+SCENARIOS  EXPECTED  RESULT  
+ACTUAL  RESULT  TEST  RESULT  
+ACTION  TAKEN  
+TC-ROOM-091:  Calendar  Color  Logic  
+Dates  with  "All  available"  should  be  Green;  "Some  booked"  should  be  Yellow.  
+Colors  accurately  reflect  availability  (e.g.,  March  30  is  Yellow).  
+PASSED  None  required  
+TC-ROOM-092:  Availability  Ratio  (X/Y)  
+If  2  rooms  out  of  4  are  booked,  the  indicator  must  show  "2/4".  
+Ratio  updates  correctly  based  on  active  reservations.  
+PASSED  None  required  
+TC-ROOM-093:  Check  Availability  Date  Range  
+Selecting  01/04/2026  to  10/04/2026  and  clicking  "Check  Availability".  
+Summary  cards  (Total,  Available,  Booked)  updated  to  match  that  range.  
+PASSED  None  required  
+
+
+--- Page 10 ---
+TC-ROOM-094:  Room  Details  Card  
+Selecting  a  booked  room  (e.g.,  Forest  View  Suite)  shows  guest  name  and  RES  ID.  
+Details  card  populated  correctly  with  Gabriel's  info  and  RES-0012.  
+PASSED  None  required  
+TC-ROOM-095:  "Add  Room"  Button  
+Clicking  "+  Add  Room"  opens  the  creation  form  for  new  inventory  entries.  
+Add  Room  modal  appeared  with  Room  No.  and  Type  fields.  
+PASSED  None  required  
+TC-ROOM-096:  Month  Selector  Navigation  
+Changing  the  month  dropdown  to  "April  2026".  
+Calendar  grid  refreshed  to  show  April's  specific  booking  data.  
+PASSED  None  required  
+TC-ROOM-097:  Show  Archived  Toggle  
+Checking  the  "Show  archived"  checkbox.  
+Table/List  updated  to  include  rooms  previously  marked  as  inactive/deleted.  
+PASSED  None  required  
+TC-ROOM-098:  Booking  Status  Consistency  
+A  room  marked  as  "Booked"  in  the  right  panel  must  also  show  as  "Booked"  in  the  reservation  table.  
+Status  is  synchronized  across  both  Room  and  Reservation  modules.  
+PASSED  None  required  
+
+
+--- Page 11 ---
+TC-ROOM-099:  Pax  Capacity  Validation  
+"Forest  View  Suite"  shows  "2  pax".  Adding  a  guest  list  of  3  should  trigger  a  warning.  
+The  system  correctly  displays  room  capacity  limits  in  the  details  view.  
+PASSED  None  required  
+TC-ROOM-100:  Global  Search  (Inventory)  
+Searching  for  "Standard"  in  the  inventory  search  bar.  
+The  filtered  view  showed  only  rooms  categorized  as  "Standard".  
+PASSED  None  required  
+                                
+
+
+--- Page 12 ---
+ Group  Name  VS  
+Proponents  John  Paul  Domong-as  Julie  Anne  Pesana  Joshua  Regidor  
+Module  Name  Payment  and  Billing  Management   CS17L:  SOFTWARE  ENGINEERING  2            Milestone  6:  Functional  test  case  specification   
+SCENARIOS  EXPECTED  RESULT  ACTUAL  RESULT  
+TEST  RESULT  
+ACTION  TAKEN  
+TC-BILL-101:  Invoice  ID  Generation  
+Every  transaction  must  generate  a  unique  ID  with  the  year  prefix  (e.g.,  INV-2026-00005).  
+Invoice  IDs  are  generated  sequentially  and  include  the  correct  year.  
+PASSED  None  required  
+TC-BILL-102:  Payment  Method  Accuracy  
+Transactions  should  correctly  label  "PayPal"  vs  "Pay  at  the  hotel"  based  on  the  checkout  choice.  
+Payment  methods  correctly  reflect  the  source  of  the  transaction.  
+PASSED  None  required  
+TC-BILL-103:  "Unpaid"  Status  Action  
+For  "Unpaid"  status  (INV-2026-00013),  a  "Pay"  button  should  appear  instead  of  "Refund."  
+UI  correctly  swaps  the  Refund  button  for  a  Pay  button  on  unpaid  items.  
+PASSED  None  required  
+
+
+--- Page 13 ---
+TC-BILL-104:  Refund  Logic  
+Clicking  "Refund"  on  a  "Paid"  status  should  trigger  a  confirmation  and  change  status  to  "Refunded."  
+Status  successfully  changed  to  "Refunded"  (as  seen  in  INV-2026-00010).  
+PASSED  None  required  
+TC-BILL-105:  PDF  Export  Functional  
+Clicking  the  "PDF"  icon  should  trigger  a  browser  download  of  the  formatted  invoice.  
+PDF  file  downloaded  successfully  with  correct  guest  and  amount  data.  
+PASSED  None  required  
+TC-BILL-106:  Record  Payment  Modal  
+Clicking  the  "+  Record  Payment"  button  should  open  a  form  to  manually  enter  offline  payments.  
+Modal  opened  with  fields  for  Amount,  Method,  and  Reference  Number.  
+PASSED  None  required  
+TC-BILL-107:  Bulk  Data  Export  
+Clicking  the  "Export"  button  (top  right)  should  download  the  current  view  as  a  .csv  or  .xlsx  file.  
+Data  exported  accurately  with  all  table  columns  included.  
+PASSED  None  required  
+TC-BILL-108:  Search  by  Invoice/Guest  
+Searching  for  "RES-0011"  should  bring  up  the  specific  invoice  associated  with  that  booking.  
+Table  filtered  instantly  to  show  the  matching  Invoice  and  Guest.  
+PASSED  None  required  
+
+
+--- Page 14 ---
+TC-BILL-109:  Status  Color  Coding  
+"Paid"  (Green),  "Unpaid"  (Orange/Yellow),  and  "Refunded"  (Purple/Gray)  should  be  distinct.  
+Badges  are  correctly  color-coded  for  quick  visual  auditing.  
+PASSED  None  required  
+TC-BILL-110:  View  Detailed  Invoice  
+Clicking  the  "View"  icon  should  open  a  read-only  detailed  breakdown  of  the  stay  charges.  
+Detailed  view  showed  room  rates,  taxes,  and  total  matching  the  table  amount.  
+PASSED  None  required  
+                              
+
+
+--- Page 15 ---
+ Group  Name  VS  
+Proponents  John  Paul  Domong-as  Julie  Anne  Pesana  Joshua  Regidor  
+Module  Name  Reports  and  Analytics   CS17L:  SOFTWARE  ENGINEERING  2            Milestone  6:  Functional  test  case  specification   
+SCENARIOS  EXPECTED  RESULT  
+ACTUAL  RESULT  TEST  RESULT  
+ACTION  TAKEN  
+TC-REPT-111:  Revenue  Trend  (YTD)  Accuracy  
+The  line  graph  must  reflect  the  sum  of  all  "Paid"  invoices  from  January  to  June.  
+Graph  data  points  accurately  match  the  monthly  financial  totals.  
+PASSED  None  required  
+TC-REPT-112:  Year  Filter  Toggle  
+Changing  the  dropdown  from  "2023"  to  another  year.  
+The  Revenue  Trend  graph  refreshes  to  display  data  for  the  selected  year.  
+PASSED  None  required  
+TC-REPT-113:  Bookings  by  Room  Type  Legend  
+The  numbers  (400,  300,  150)  must  sum  up  to  the  total  number  of  bookings  in  the  selected  period.  
+Legend  totals  match  the  raw  count  of  reservations  per  room  type.  
+PASSED  None  required  
+
+
+--- Page 16 ---
+TC-REPT-114:  Financial  Report  Navigation  
+Clicking  the  "Financial  Report"  card  should  open  a  detailed  ledger  of  revenue  vs.  expenses.  
+System  redirected  to  the  detailed  financial  breakdown  view.  
+PASSED  None  required  
+TC-REPT-115:  Occupancy  Report  Navigation  
+Clicking  the  "Occupancy  Report"  card  should  show  trends  for  room  utilization.  
+System  redirected  to  the  occupancy  analytics  sub-page.  
+PASSED  None  required  
+TC-REPT-116:  Guest  Feedback  Navigation  
+Clicking  the  "Guest  Feedback"  card  should  show  satisfaction  scores  and  reviews.  
+System  redirected  to  the  feedback  and  sentiment  analysis  view.  
+PASSED  None  required  
+TC-REPT-117:  Export  PDF  Functionality  
+Clicking  "Export  PDF"  should  generate  a  high-resolution  snapshot  of  the  current  dashboard  charts.  
+PDF  file  generated  with  all  charts  and  legends  formatted  for  print.  
+PASSED  None  required  
+TC-REPT-118:  Export  Excel  Functionality  
+Clicking  "Export  Excel"  should  download  the  raw  data  used  for  the  charts.  
+Excel  file  downloaded  with  clean  rows  and  columns  of  the  underlying  data.  
+PASSED  None  required  
+
+
+--- Page 17 ---
+TC-REPT-119:  Hover  Data  Consistency  
+Hovering  over  the  "June"  point  on  the  YTD  graph  should  show  the  specific  dollar  amount.  
+Tooltip  accurately  displays  the  value  corresponding  to  the  Y-axis  ($70k+).  
+PASSED  None  required  
+TC-REPT-120:  Dynamic  Donut  Chart  
+The  "Bookings  by  Room  Type"  chart  segments  must  be  proportional  to  the  counts  (400  vs  300  vs  150).  
+Visual  proportions  of  the  donut  ring  accurately  reflect  the  numerical  data.  
+PASSED  None  required  
+ 
