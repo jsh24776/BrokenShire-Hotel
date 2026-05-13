@@ -162,7 +162,7 @@ export default function RegisterPage() {
                         name="password"
                         type="password" 
                         required
-                        placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                        placeholder="********"
                         className="w-full pl-12 pr-4 py-3 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-4 focus:ring-forest-500/10 outline-none transition-all"
                       />
                     </div>
@@ -176,7 +176,7 @@ export default function RegisterPage() {
                         name="password_confirmation"
                         type="password" 
                         required
-                        placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                        placeholder="********"
                         className="w-full pl-12 pr-4 py-3 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-4 focus:ring-forest-500/10 outline-none transition-all"
                       />
                     </div>
@@ -239,3 +239,4 @@ export default function RegisterPage() {
     </div>
   );
 }
+

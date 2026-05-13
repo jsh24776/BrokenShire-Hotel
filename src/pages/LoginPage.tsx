@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { LogIn, User, Shield, Lock, Mail, ArrowRight, Home } from 'lucide-react';
@@ -122,7 +122,7 @@ export default function LoginPage() {
                     name="password"
                     type="password" 
                     required
-                    placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                    placeholder="********"
                     className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-earth-200 focus:border-forest-500 focus:ring-4 focus:ring-forest-500/10 outline-none transition-all"
                   />
                 </div>
@@ -172,3 +172,4 @@ export default function LoginPage() {
     </div>
   );
 }
+

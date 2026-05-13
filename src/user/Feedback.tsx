@@ -41,6 +41,7 @@ export default function Feedback() {
   const [hoveredRating, setHoveredRating] = useState(0);
   const [comment, setComment] = useState('');
   const [reservationId, setReservationId] = useState<number | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ reservation?: string; rating?: string } | null>(null);
 
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
@@ -82,21 +83,38 @@ export default function Feedback() {
     return () => controller.abort();
   }, []);
 
-  const completedStays = useMemo(() => bookings.filter((b) => b.status === 'checked_out'), [bookings]);
+  const completedStays = useMemo(() => {
+    const completed = new Set(['checked_out', 'completed', 'complete', 'done']);
+    return bookings.filter((b) => completed.has(String(b.status ?? '').toLowerCase()));
+  }, [bookings]);
   const reviewedReservationIds = useMemo(() => new Set(feedbacks.map((f) => f.reservation_id)), [feedbacks]);
-  const selectableStays = useMemo(
-    () => completedStays.filter((b) => !reviewedReservationIds.has(b.id)),
+  const hasUnreviewedCompleted = useMemo(
+    () => completedStays.some((b) => !reviewedReservationIds.has(b.id)),
     [completedStays, reviewedReservationIds]
   );
 
   useEffect(() => {
     if (reservationId) return;
-    const first = selectableStays[0];
+    const first = completedStays.find((b) => !reviewedReservationIds.has(b.id)) ?? completedStays[0];
     if (first) setReservationId(first.id);
-  }, [reservationId, selectableStays]);
+  }, [reservationId, completedStays, reviewedReservationIds]);
 
   const handleSubmit = async () => {
-    if (!reservationId || !rating || !comment.trim()) return;
+    const nextErrors: { reservation?: string; rating?: string } = {};
+    if (!reservationId) nextErrors.reservation = 'Please select a completed stay.';
+    if (!rating) nextErrors.rating = 'Please select a rating.';
+    if (Object.keys(nextErrors).length > 0) {
+      setFieldErrors(nextErrors);
+      showToast('Please complete the required fields.', 'error');
+      return;
+    }
+
+    if (reviewedReservationIds.has(reservationId)) {
+      showToast('You already reviewed this stay.', 'info');
+      return;
+    }
+
+    setFieldErrors(null);
 
     setIsSubmitting(true);
     try {
@@ -152,22 +170,36 @@ export default function Feedback() {
                   <label className="text-sm font-medium text-forest-800 block mb-2">Select Completed Stay</label>
                   <select
                     value={reservationId ?? ''}
-                    onChange={(e) => setReservationId(Number(e.target.value))}
-                    disabled={selectableStays.length === 0}
-                    className="w-full px-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all bg-transparent appearance-none text-sm disabled:bg-earth-50"
+                    onChange={(e) => {
+                      const value = e.target.value ? Number(e.target.value) : null;
+                      setReservationId(value);
+                      setFieldErrors((prev) => (prev?.reservation ? { ...prev, reservation: undefined } : prev));
+                    }}
+                    disabled={completedStays.length === 0}
+                    className={`w-full px-4 py-2.5 rounded-xl border focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all bg-transparent appearance-none text-sm disabled:bg-earth-50 ${
+                      fieldErrors?.reservation ? 'border-red-300 ring-2 ring-red-500/10' : 'border-earth-200'
+                    }`}
                   >
-                    {selectableStays.length === 0 ? (
+                    {completedStays.length === 0 ? (
                       <option value="">No completed stays available</option>
                     ) : (
-                      selectableStays.map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {b.room_name} ({formatDateShort(b.check_in_date)} - {formatDateShort(b.check_out_date)})
-                        </option>
-                      ))
+                      <>
+                        <option value="">Select a stay</option>
+                        {completedStays.map((b) => (
+                          <option key={b.id} value={b.id} disabled={reviewedReservationIds.has(b.id)}>
+                            {b.room_name} ({formatDateShort(b.check_in_date)} - {formatDateShort(b.check_out_date)})
+                            {reviewedReservationIds.has(b.id) ? ' — Reviewed' : ''}
+                          </option>
+                        ))}
+                      </>
                     )}
                   </select>
+                  {fieldErrors?.reservation && <p className="text-xs text-red-600 mt-2">{fieldErrors.reservation}</p>}
                   {completedStays.length === 0 && (
                     <p className="text-xs text-forest-700/60 mt-2">You can submit feedback after you check out.</p>
+                  )}
+                  {completedStays.length > 0 && !hasUnreviewedCompleted && (
+                    <p className="text-xs text-forest-700/60 mt-2">You already reviewed all completed stays.</p>
                   )}
                 </div>
 
@@ -178,7 +210,10 @@ export default function Feedback() {
                       <button
                         key={star}
                         type="button"
-                        onClick={() => setRating(star)}
+                        onClick={() => {
+                          setRating(star);
+                          setFieldErrors((prev) => (prev?.rating ? { ...prev, rating: undefined } : prev));
+                        }}
                         onMouseEnter={() => setHoveredRating(star)}
                         onMouseLeave={() => setHoveredRating(0)}
                         className="p-1 focus:outline-none transition-transform hover:scale-110"
@@ -191,6 +226,7 @@ export default function Feedback() {
                       </button>
                     ))}
                   </div>
+                  {fieldErrors?.rating && <p className="text-xs text-red-600 mt-2">{fieldErrors.rating}</p>}
                 </div>
 
                 <div>
@@ -199,15 +235,17 @@ export default function Feedback() {
                     rows={4}
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
+                    maxLength={500}
                     placeholder="Tell us about your stay..."
                     className="w-full px-4 py-3 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all bg-transparent text-sm resize-none"
                   />
+                  <div className="mt-2 text-xs text-forest-700/60 text-right">{comment.length}/500</div>
                 </div>
 
                 <button
                   onClick={handleSubmit}
                   className="w-full bg-forest-700 hover:bg-forest-800 text-white py-3 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={!reservationId || !rating || !comment.trim() || isSubmitting || selectableStays.length === 0}
+                  disabled={isSubmitting || completedStays.length === 0 || !hasUnreviewedCompleted}
                 >
                   {isSubmitting ? (
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -265,4 +303,3 @@ export default function Feedback() {
     </div>
   );
 }
-

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { Calendar, ShieldCheck, XCircle, CheckCircle, X } from 'lucide-react';
 import { useToast } from '../components/ToastContext';
@@ -320,14 +320,7 @@ export default function MyBookings() {
                   </p>
                 </div>
 
-                {(selectedBooking.status === 'pending' || selectedBooking.status === 'confirmed') && (
-                  <button
-                    onClick={() => setBookingToCancel(selectedBooking)}
-                    className="w-full px-4 py-3 bg-red-50 text-red-700 hover:bg-red-100 rounded-xl text-sm font-medium transition-colors"
-                  >
-                    Cancel Booking
-                  </button>
-                )}
+             
               </div>
             </motion.div>
           </div>

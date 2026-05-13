@@ -15,6 +15,7 @@ import { useToast } from '../components/ToastContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { api } from '../lib/api';
 import { useSearchParams } from 'react-router-dom';
+import { addGuestNotification } from './notifications';
 type Room = {
   room_number: string;
   display_name: string | null;
@@ -103,7 +104,8 @@ export default function SearchRooms() {
   const [isLoadingRooms, setIsLoadingRooms] = useState(true);
   const [roomsError, setRoomsError] = useState<string | null>(null);
 
-  const [selectedRoomNumber, setSelectedRoomNumber] = useState<string | null>(null);
+  const [detailsRoomNumber, setDetailsRoomNumber] = useState<string | null>(null);
+  const [bookingRoomNumber, setBookingRoomNumber] = useState<string | null>(null);
   const [bookingStep, setBookingStep] = useState(1);
 
   const [guestDetails, setGuestDetails] = useState({
@@ -122,8 +124,13 @@ export default function SearchRooms() {
   const [isPaying, setIsPaying] = useState(false);
 
   const selectedRoom = useMemo(
-    () => rooms.find((r) => r.room_number === selectedRoomNumber) ?? null,
-    [selectedRoomNumber, rooms]
+    () => rooms.find((r) => r.room_number === bookingRoomNumber) ?? null,
+    [bookingRoomNumber, rooms]
+  );
+
+  const detailsRoom = useMemo(
+    () => rooms.find((r) => r.room_number === detailsRoomNumber) ?? null,
+    [detailsRoomNumber, rooms]
   );
 
   const pricing = useMemo(() => {
@@ -214,10 +221,10 @@ export default function SearchRooms() {
   }, [dates.checkIn, dates.checkOut, guests]);
   useEffect(() => {
     if (!preferredType) return;
-    if (selectedRoomNumber) return;
+    if (detailsRoomNumber) return;
     const match = rooms.find((r) => r.type === preferredType && r.available) ?? rooms.find((r) => r.type === preferredType);
-    if (match) setSelectedRoomNumber(match.room_number);
-  }, [preferredType, rooms, selectedRoomNumber]);
+    if (match) setDetailsRoomNumber(match.room_number);
+  }, [preferredType, rooms, detailsRoomNumber]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -262,7 +269,8 @@ export default function SearchRooms() {
   };
 
   const handleBookNow = (roomNumber: string) => {
-    setSelectedRoomNumber(roomNumber);
+    setBookingRoomNumber(roomNumber);
+    setDetailsRoomNumber(null);
     setBookingStep(1);
     setAcceptedTerms(false);
     setPaymentMethod('hotel');
@@ -304,8 +312,12 @@ export default function SearchRooms() {
 
       setReceipt(booking);
       showToast(`Booking ${booking.reference} created!`, 'success');
+      addGuestNotification({
+        title: 'Booking confirmed',
+        message: `Your booking ${booking.reference} was created successfully.`,
+      });
 
-      setSelectedRoomNumber(null);
+      setBookingRoomNumber(null);
       setBookingStep(1);
       setAcceptedTerms(false);
     } catch (err) {
@@ -515,7 +527,7 @@ export default function SearchRooms() {
                   <div className="flex gap-3 mt-auto">
                     <button
                       className="flex-1 border border-forest-200 text-forest-800 hover:bg-forest-50 py-2.5 rounded-xl font-medium transition-colors text-sm"
-                      onClick={() => setSelectedRoomNumber(room.room_number)}
+                      onClick={() => setDetailsRoomNumber(room.room_number)}
                     >
                       View Details
                     </button>
@@ -535,13 +547,121 @@ export default function SearchRooms() {
       )}
 
       <AnimatePresence>
-        {selectedRoomNumber && (
+        {detailsRoomNumber && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setSelectedRoomNumber(null)}
+              onClick={() => setDetailsRoomNumber(null)}
+              className="absolute inset-0 bg-forest-900/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden relative z-10"
+            >
+              <div className="p-6 border-b border-earth-100 flex justify-between items-center bg-earth-50/50">
+                <div>
+                  <h2 className="text-xl font-serif font-semibold text-forest-900">Room Details</h2>
+                  <p className="text-sm text-forest-700/60">{detailsRoom?.display_name ?? detailsRoom?.type}</p>
+                </div>
+                <button onClick={() => setDetailsRoomNumber(null)} className="p-2 hover:bg-earth-100 rounded-full transition-colors">
+                  <X className="w-5 h-5 text-forest-800/50" />
+                </button>
+              </div>
+
+              <div className="p-6 grid grid-cols-1 lg:grid-cols-5 gap-6">
+                <div className="lg:col-span-2">
+                  <div className="aspect-[4/3] rounded-2xl overflow-hidden bg-earth-50 border border-earth-100">
+                    {detailsRoom?.image_url ? (
+                      <img
+                        src={detailsRoom.image_url}
+                        alt={detailsRoom.display_name ?? detailsRoom.type}
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-earth-50" />
+                    )}
+                  </div>
+                </div>
+
+                <div className="lg:col-span-3 space-y-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="text-xs font-bold text-forest-700/40 uppercase tracking-widest">Room Number</div>
+                      <div className="text-lg font-bold text-forest-900">{detailsRoom?.room_number ?? '—'}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs font-bold text-forest-700/40 uppercase tracking-widest">Rate / Night</div>
+                      <div className="text-lg font-bold text-forest-900">
+                        {detailsRoom ? formatMoney(detailsRoom.base_rate_cents, detailsRoom.currency) : '—'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-earth-50 rounded-2xl border border-earth-100 p-4">
+                      <div className="text-xs font-bold text-forest-700/40 uppercase tracking-widest">Capacity</div>
+                      <div className="mt-1 text-sm font-semibold text-forest-900">{detailsRoom?.capacity ?? '—'} guest(s)</div>
+                    </div>
+                    <div className="bg-earth-50 rounded-2xl border border-earth-100 p-4">
+                      <div className="text-xs font-bold text-forest-700/40 uppercase tracking-widest">Size</div>
+                      <div className="mt-1 text-sm font-semibold text-forest-900">{detailsRoom?.size ?? '—'}</div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl border border-earth-100 p-4">
+                    <div className="text-xs font-bold text-forest-700/40 uppercase tracking-widest">Description</div>
+                    <p className="mt-2 text-sm text-forest-700/80 leading-relaxed">{detailsRoom?.description ?? '—'}</p>
+                  </div>
+
+                  <div className="bg-white rounded-2xl border border-earth-100 p-4">
+                    <div className="text-xs font-bold text-forest-700/40 uppercase tracking-widest mb-3">Amenities</div>
+                    <div className="flex flex-wrap gap-2">
+                      {(detailsRoom?.amenities ?? []).map((a) => (
+                        <span
+                          key={a}
+                          className="bg-earth-50 text-forest-800 text-xs px-2 py-1 rounded-md border border-earth-100"
+                        >
+                          {AMENITY_LABELS[a] ?? titleCase(a)}
+                        </span>
+                      ))}
+                      {(detailsRoom?.amenities ?? []).length === 0 && (
+                        <span className="text-sm text-forest-700/60">—</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      onClick={() => setDetailsRoomNumber(null)}
+                      className="flex-1 border border-forest-200 text-forest-800 hover:bg-forest-50 py-2.5 rounded-xl font-medium transition-colors text-sm"
+                    >
+                      Close
+                    </button>
+                    <button
+                      disabled={!detailsRoom?.available}
+                      onClick={() => (detailsRoomNumber ? handleBookNow(detailsRoomNumber) : null)}
+                      className="flex-1 bg-forest-700 hover:bg-forest-800 disabled:bg-earth-200 disabled:text-forest-800/40 text-white py-2.5 rounded-xl font-medium transition-colors text-sm"
+                    >
+                      Book Now
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+        {bookingRoomNumber && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setBookingRoomNumber(null)}
               className="absolute inset-0 bg-forest-900/40 backdrop-blur-sm"
             />
             <motion.div
@@ -555,7 +675,7 @@ export default function SearchRooms() {
                   <h2 className="text-xl font-serif font-semibold text-forest-900">Book Your Stay</h2>
                   <p className="text-sm text-forest-700/60">{selectedRoom?.display_name ?? selectedRoom?.type}</p>
                 </div>
-                <button onClick={() => setSelectedRoomNumber(null)} className="p-2 hover:bg-earth-100 rounded-full transition-colors">
+                <button onClick={() => setBookingRoomNumber(null)} className="p-2 hover:bg-earth-100 rounded-full transition-colors">
                   <X className="w-5 h-5 text-forest-800/50" />
                 </button>
               </div>

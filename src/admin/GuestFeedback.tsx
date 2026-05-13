@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Star, ThumbsUp, MessageCircle, TrendingUp } from 'lucide-react';
 import {
@@ -132,11 +132,11 @@ export default function GuestFeedback() {
               <YAxis axisLine={false} tickLine={false} tick={{ fill: '#7a604e', fontSize: 12 }} />
               <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
               <Legend />
-              <Bar dataKey="rating5" fill="#059669" name="⭐⭐⭐⭐⭐ (5-star)" />
-              <Bar dataKey="rating4" fill="#84cc16" name="⭐⭐⭐⭐ (4-star)" />
-              <Bar dataKey="rating3" fill="#eab308" name="⭐⭐⭐ (3-star)" />
-              <Bar dataKey="rating2" fill="#fb923c" name="⭐⭐ (2-star)" />
-              <Bar dataKey="rating1" fill="#ef4444" name="⭐ (1-star)" />
+              <Bar dataKey="rating5" fill="#059669" name="5-star" />
+              <Bar dataKey="rating4" fill="#84cc16" name="4-star" />
+              <Bar dataKey="rating3" fill="#eab308" name="3-star" />
+              <Bar dataKey="rating2" fill="#fb923c" name="2-star" />
+              <Bar dataKey="rating1" fill="#ef4444" name="1-star" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -176,3 +176,4 @@ export default function GuestFeedback() {
     </div>
   );
 }
+

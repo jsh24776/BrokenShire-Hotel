@@ -12,6 +12,7 @@ import {
 import { useToast } from '../components/ToastContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '../lib/api';
+import jsPDF from 'jspdf';
 
 type Booking = {
   id: number;
@@ -154,6 +155,80 @@ function printReceiptAsPdf(booking: Booking) {
   w.document.close();
 }
 
+function downloadReceiptPdf(booking: Booking) {
+  const datePaid = booking.paid_at ?? booking.created_at;
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const left = 48;
+  const right = pageWidth - left;
+  let y = 56;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.text('Brokenshire Hotel Receipt', pageWidth / 2, y, { align: 'center' });
+
+  y += 18;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.text(booking.reference, pageWidth / 2, y, { align: 'center' });
+
+  y += 14;
+  doc.text(`Date: ${formatDateShort(datePaid)}`, pageWidth / 2, y, { align: 'center' });
+
+  y += 28;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.text('Room', left, y);
+
+  y += 14;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(11);
+  doc.text(`${booking.room_name} (Room ${booking.room_number})`, left, y, { maxWidth: right - left });
+
+  y += 14;
+  doc.setFontSize(10);
+  doc.text(
+    `${formatDateShort(booking.check_in_date)} - ${formatDateShort(booking.check_out_date)} • ${booking.nights} night(s)`,
+    left,
+    y,
+    { maxWidth: right - left }
+  );
+
+  y += 22;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.text('Payment', left, y);
+
+  y += 14;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.text(`Method: ${paymentMethodLabel(booking.payment_method)}`, left, y);
+  y += 14;
+  doc.text(`Status: ${titleCase(booking.payment_status)}`, left, y);
+  y += 14;
+  doc.text(`Invoice / Reference: ${booking.payment_reference ?? '—'}`, left, y, { maxWidth: right - left });
+  y += 14;
+  doc.text(`Paid At: ${formatDateShort(booking.paid_at)}`, left, y);
+
+  y += 26;
+  doc.setDrawColor(210);
+  doc.line(left, y, right, y);
+
+  y += 22;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.text('Total Amount', left, y);
+  doc.text(formatMoney(booking.amount_cents, booking.currency || 'PHP'), right, y, { align: 'right' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text(`Generated on ${new Date().toLocaleString('en-PH')}`, pageWidth / 2, pageHeight - 24, { align: 'center' });
+
+  doc.save(`${booking.reference}-receipt.pdf`);
+}
+
 export default function Payments() {
   const { showToast } = useToast();
 
@@ -273,13 +348,6 @@ export default function Payments() {
           <h1 className="text-2xl font-serif font-semibold text-forest-900">Payments & Invoices</h1>
           <p className="text-forest-700/70 mt-1">View your payment history, receipts, and download a PDF copy.</p>
         </div>
-        <button
-          onClick={openPayModal}
-          className="bg-forest-700 hover:bg-forest-800 text-white px-4 py-2 rounded-xl font-medium transition-colors flex items-center gap-2"
-        >
-          <CreditCard className="w-4 h-4" />
-          Make a Payment
-        </button>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-earth-100 overflow-hidden">
@@ -343,7 +411,7 @@ export default function Payments() {
                           <ReceiptText className="w-3.5 h-3.5" /> View
                         </button>
                         <button
-                          onClick={() => printReceiptAsPdf(b)}
+                          onClick={() => downloadReceiptPdf(b)}
                           className="p-1.5 text-forest-600 hover:bg-forest-50 rounded-lg transition-colors inline-flex items-center gap-1 text-xs font-medium border border-earth-200 px-3 py-1.5"
                         >
                           <Download className="w-3.5 h-3.5" /> PDF
@@ -570,13 +638,7 @@ export default function Payments() {
                     <p className="text-xs text-forest-800/80 leading-relaxed">
                       You can download a PDF copy of this receipt anytime.
                     </p>
-                  </div>
-                  <button
-                    onClick={() => printReceiptAsPdf(receiptBooking)}
-                    className="shrink-0 px-4 py-3 rounded-2xl bg-forest-700 hover:bg-forest-800 text-white text-sm font-medium inline-flex items-center gap-2"
-                  >
-                    <Download className="w-4 h-4" /> PDF
-                  </button>
+                  </div>  
                 </div>
               </div>
             </motion.div>

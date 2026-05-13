@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -15,11 +15,18 @@ import {
   Bell
 } from 'lucide-react';
 import HelpChatbot from './HelpChatbot';
+import { markAllGuestNotificationsRead, useGuestNotifications } from './notifications';
 
 export default function UserLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { items: notifications, unreadCount } = useGuestNotifications();
+
+  useEffect(() => {
+    setIsNotificationsOpen(false);
+  }, [location.pathname]);
 
   const navItems = [
     { name: 'Dashboard', path: '/user', icon: LayoutDashboard },
@@ -113,10 +120,66 @@ export default function UserLayout() {
           </button>
           
           <div className="ml-auto flex items-center gap-4">
-            <button className="relative p-2 text-forest-700/70 hover:text-forest-900 transition-colors rounded-full hover:bg-earth-50">
+            <div className="relative">
+              <button
+                onClick={() => setIsNotificationsOpen((v) => !v)}
+                className="relative p-2 text-forest-700/70 hover:text-forest-900 transition-colors rounded-full hover:bg-earth-50"
+                aria-label="Notifications"
+              >
               <Bell className="w-5 h-5" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full border-2 border-white"></span>
-            </button>
+                {unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full border-2 border-white"></span>
+                )}
+              </button>
+
+              <AnimatePresence>
+                {isNotificationsOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 mt-2 w-80 bg-white border border-earth-200 rounded-2xl shadow-xl overflow-hidden z-50"
+                  >
+                    <div className="px-4 py-3 bg-earth-50/70 border-b border-earth-100 flex items-center justify-between">
+                      <div className="text-sm font-semibold text-forest-900">Notifications</div>
+                      <button
+                        onClick={() => markAllGuestNotificationsRead()}
+                        className="text-xs font-medium text-forest-700/70 hover:text-forest-900"
+                      >
+                        Mark all read
+                      </button>
+                    </div>
+
+                    <div className="max-h-80 overflow-y-auto">
+                      {notifications.length === 0 ? (
+                        <div className="px-4 py-6 text-sm text-forest-700/70">No notifications yet.</div>
+                      ) : (
+                        <div className="divide-y divide-earth-100">
+                          {notifications.map((n) => (
+                            <div key={n.id} className="px-4 py-3 hover:bg-earth-50/60 transition-colors">
+                              <div className="flex items-start gap-2">
+                                <div className="mt-1">
+                                  <span
+                                    className={`inline-block w-2 h-2 rounded-full ${
+                                      n.read ? 'bg-earth-200' : 'bg-emerald-500'
+                                    }`}
+                                  />
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="text-sm font-semibold text-forest-900 truncate">{n.title}</div>
+                                  <div className="text-xs text-forest-700/70 mt-0.5">{n.message}</div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
             <div className="h-8 w-px bg-earth-200 mx-2"></div>
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">

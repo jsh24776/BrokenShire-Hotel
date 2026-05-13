@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Mail, Lock, User, ArrowRight, Shield } from 'lucide-react';
 import axios from 'axios';
@@ -281,7 +281,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
                             type="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            placeholder="••••••••"
+                            placeholder="********"
                             className="w-full pl-10 pr-4 py-3 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all"
                           />
                         </div>
@@ -297,7 +297,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
                             type="password"
                             value={passwordConfirmation}
                             onChange={(e) => setPasswordConfirmation(e.target.value)}
-                            placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                            placeholder="********"
                             className="w-full pl-10 pr-4 py-3 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all"
                           />
                         </div>
@@ -374,3 +374,4 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
     </AnimatePresence>
   );
 }
+

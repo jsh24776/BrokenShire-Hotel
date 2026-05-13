@@ -116,7 +116,9 @@ export default function Reports() {
       
       const revenueTotal = revenueData.reduce((sum, item) => sum + item.value, 0);
       doc.setFontSize(11);
-      doc.text(`Total Revenue: ${phpCurrencyFormatter.format(revenueTotal)}`, 25, yPos + 2, { style: 'bold' });
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Total Revenue: ${phpCurrencyFormatter.format(revenueTotal)}`, 25, yPos + 2);
+      doc.setFont('helvetica', 'normal');
       
       // Room Type Summary
       doc.setFontSize(12);
@@ -130,7 +132,9 @@ export default function Reports() {
         yPos += 6;
       });
       
-      doc.text(`Total Bookings: ${roomTypeTotal}`, 25, yPos + 2, { style: 'bold' });
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Total Bookings: ${roomTypeTotal}`, 25, yPos + 2);
+      doc.setFont('helvetica', 'normal');
       
       // Footer
       doc.setFontSize(8);

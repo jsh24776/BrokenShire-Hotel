@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { Search, Download, FileText, CreditCard, X, CheckCircle, RefreshCcw, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import jsPDF from 'jspdf';
 import { useToast } from '../components/ToastContext';
 import { api } from '../lib/api';
 
@@ -93,6 +94,90 @@ function getStatusColor(status: string) {
     default:
       return 'bg-earth-100 text-earth-800';
   }
+}
+
+function downloadInvoicePdf(invoice: Invoice) {
+  const issued = invoice.paid_at ?? invoice.date_issued;
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const left = 48;
+  const right = pageWidth - left;
+  let y = 56;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.text('Brokenshire Hotel Invoice', pageWidth / 2, y, { align: 'center' });
+
+  y += 18;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.text(`${invoice.invoice_id} - ${invoice.reservation_ref}`, pageWidth / 2, y, { align: 'center' });
+
+  y += 14;
+  doc.text(`Issued: ${formatDateShort(issued)}`, pageWidth / 2, y, { align: 'center' });
+
+  y += 28;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.text('Guest', left, y);
+
+  y += 14;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(11);
+  doc.text(String(invoice.guest_name ?? '—'), left, y, { maxWidth: right - left });
+
+  y += 14;
+  doc.setFontSize(10);
+  doc.text(String(invoice.guest_email ?? '—'), left, y, { maxWidth: right - left });
+
+  y += 22;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.text('Stay Details', left, y);
+
+  y += 14;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.text(`Room: ${invoice.room_number} - ${invoice.room_type}`, left, y, { maxWidth: right - left });
+
+  y += 14;
+  doc.text(`Check-in: ${formatDateShort(invoice.check_in_date)}`, left, y);
+  y += 14;
+  doc.text(`Check-out: ${formatDateShort(invoice.check_out_date)}`, left, y);
+  y += 14;
+  doc.text(`Nights: ${invoice.nights}`, left, y);
+
+  y += 22;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.text('Payment', left, y);
+
+  y += 14;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.text(`Status: ${titleCase(invoice.payment_status)}`, left, y);
+  y += 14;
+  doc.text(`Method: ${paymentMethodLabel(invoice.payment_method)}`, left, y);
+  y += 14;
+  doc.text(`Reference: ${invoice.payment_reference ?? '—'}`, left, y, { maxWidth: right - left });
+
+  y += 26;
+  doc.setDrawColor(210);
+  doc.line(left, y, right, y);
+
+  y += 22;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.text('Total Amount', left, y);
+  doc.text(formatMoney(invoice.amount_cents, invoice.currency), right, y, { align: 'right' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text(`Generated on ${new Date().toLocaleString('en-PH')}`, pageWidth / 2, pageHeight - 24, { align: 'center' });
+
+  doc.save(`${invoice.invoice_id}.pdf`);
 }
 
 function printInvoiceAsPdf(invoice: Invoice) {
@@ -500,7 +585,7 @@ export default function Billing() {
                           </button>
                         )}
                         <button
-                          onClick={() => printInvoiceAsPdf(inv)}
+                          onClick={() => downloadInvoicePdf(inv)}
                           className="p-1.5 text-forest-600 hover:bg-forest-50 rounded-lg transition-colors inline-flex items-center gap-1 text-xs font-medium border border-earth-200 px-3 py-1.5"
                         >
                           <Download className="w-4 h-4" /> PDF
