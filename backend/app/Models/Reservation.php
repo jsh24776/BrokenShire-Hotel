@@ -51,4 +51,46 @@ class Reservation extends Model
     {
         return $this->hasOne(Invoice::class);
     }
+
+    /**
+     * Check if a room is available for the given date range
+     *
+     * @param  string  $roomNumber
+     * @param  \Carbon\Carbon  $checkIn
+     * @param  \Carbon\Carbon  $checkOut
+     * @param  int|null  $excludeReservationId  Reservation ID to exclude from check (for updates)
+     * @return bool
+     */
+    public static function isRoomAvailable($roomNumber, $checkIn, $checkOut, $excludeReservationId = null)
+    {
+        $query = self::query()
+            ->where('room_number', $roomNumber)
+            ->whereIn('status', ['pending', 'confirmed', 'checked_in'])
+            ->where('check_out_date', '>', $checkIn->toDateString())
+            ->where('check_in_date', '<', $checkOut->toDateString());
+
+        if ($excludeReservationId) {
+            $query->where('id', '!=', $excludeReservationId);
+        }
+
+        return ! $query->exists();
+    }
+
+    /**
+     * Get all conflicting reservations for a room and date range
+     *
+     * @param  string  $roomNumber
+     * @param  \Carbon\Carbon  $checkIn
+     * @param  \Carbon\Carbon  $checkOut
+     * @return \Illuminate\Database\Eloquent\Collection
+     */
+    public static function getConflictingReservations($roomNumber, $checkIn, $checkOut)
+    {
+        return self::query()
+            ->where('room_number', $roomNumber)
+            ->whereIn('status', ['pending', 'confirmed', 'checked_in'])
+            ->where('check_out_date', '>', $checkIn->toDateString())
+            ->where('check_in_date', '<', $checkOut->toDateString())
+            ->get();
+    }
 }

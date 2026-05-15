@@ -5,13 +5,21 @@ import { User, Mail, Phone, MapPin, Lock, ArrowRight, Home, UserPlus, CheckCircl
 import { useToast } from '../components/ToastContext';
 import axios from 'axios';
 import { api } from '../lib/api';
-import { setAuth } from '../lib/auth';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [step, setStep] = useState(1);
+
+  const isStrongPassword = (password: string) => {
+    if (password.length < 8) return false;
+    if (!/[A-Z]/.test(password)) return false;
+    if (!/[a-z]/.test(password)) return false;
+    if (!/[0-9]/.test(password)) return false;
+    if (!/[^A-Za-z0-9]/.test(password)) return false;
+    return true;
+  };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,6 +37,28 @@ export default function RegisterPage() {
       password_confirmation: String(data.get('password_confirmation') ?? ''),
     };
 
+    if (!payload.email.includes('@')) {
+      showToast('Please enter a valid email address (must include "@").', 'error');
+      setIsLoading(false);
+      return;
+    }
+
+    const normalizedPhone = payload.phone.replace(/\D/g, '');
+    if (normalizedPhone.length !== 11) {
+      showToast('Phone number must be exactly 11 digits.', 'error');
+      setIsLoading(false);
+      return;
+    }
+
+    if (!isStrongPassword(payload.password)) {
+      showToast(
+        'Password must be at least 8 characters and include an uppercase letter, lowercase letter, number, and special character.',
+        'error'
+      );
+      setIsLoading(false);
+      return;
+    }
+
     if (payload.password !== payload.password_confirmation) {
       showToast('Passwords do not match.', 'error');
       setIsLoading(false);
@@ -36,10 +66,9 @@ export default function RegisterPage() {
     }
 
     try {
-      const res = await api.post('/register', payload);
-      setAuth(res.data.token, 'user');
-      showToast('Account created successfully! Welcome to Brokenshire Hotel.', 'success');
-      navigate('/user');
+      await api.post('/register', { ...payload, phone: normalizedPhone });
+      showToast('Account created successfully! Please sign in to continue.', 'success');
+      navigate('/login');
     } catch (err) {
       if (axios.isAxiosError(err)) {
         const message =
@@ -120,11 +149,13 @@ export default function RegisterPage() {
                     <label className="text-sm font-medium text-forest-800 ml-1">Phone Number</label>
                     <div className="relative group">
                       <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-forest-300 group-focus-within:text-forest-500 transition-colors" />
-                      <input 
+                      <input
                         name="phone"
-                        type="tel" 
+                        type="tel"
                         required
-                        placeholder="+1 (555) 000-0000"
+                        inputMode="numeric"
+                        maxLength={11}
+                        placeholder="09171234567"
                         className="w-full pl-12 pr-4 py-3 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-4 focus:ring-forest-500/10 outline-none transition-all"
                       />
                     </div>
@@ -163,6 +194,7 @@ export default function RegisterPage() {
                         type="password" 
                         required
                         placeholder="********"
+                        minLength={8}
                         className="w-full pl-12 pr-4 py-3 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-4 focus:ring-forest-500/10 outline-none transition-all"
                       />
                     </div>

@@ -100,11 +100,18 @@ class BookingController extends Controller
         $checkOut = Carbon::parse($validated['check_out_date'])->startOfDay();
         $nights = max(1, $checkIn->diffInDays($checkOut));
 
-        $conflictExists = Reservation::query()
+        // Check for date overlap with active reservations (pending, confirmed, or checked_in)
+        // Using pessimistic locking to prevent race conditions during high concurrency
+        $conflictExists = DB::table('reservations')
             ->where('room_number', $room->room_number)
-            ->whereNotIn('status', ['cancelled', 'checked_out'])
-            ->where('check_in_date', '<', $checkOut->toDateString())
-            ->where('check_out_date', '>', $checkIn->toDateString())
+            ->whereIn('status', ['pending', 'confirmed', 'checked_in'])
+            ->where(function ($query) use ($checkIn, $checkOut) {
+                // Check if existing reservation overlaps with new booking
+                // Overlap exists if: existing_checkout > new_checkin AND existing_checkin < new_checkout
+                $query->where('check_out_date', '>', $checkIn->toDateString())
+                    ->where('check_in_date', '<', $checkOut->toDateString());
+            })
+            ->lockForUpdate() // Prevent concurrent bookings
             ->exists();
 
         if ($conflictExists) {

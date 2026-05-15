@@ -114,7 +114,13 @@ export default function LoginPage() {
               <div className="space-y-1.5">
                 <div className="flex justify-between items-center ml-1">
                   <label className="text-sm font-medium text-forest-800">Password</label>
-                  <button type="button" className="text-xs font-medium text-forest-600 hover:text-forest-800">Forgot?</button>
+                  <button 
+                    type="button" 
+                    onClick={() => navigate('/forgot-password')}
+                    className="text-xs font-medium text-forest-600 hover:text-forest-800"
+                  >
+                    Forgot?
+                  </button>
                 </div>
                 <div className="relative group">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-forest-300 group-focus-within:text-forest-500 transition-colors" />

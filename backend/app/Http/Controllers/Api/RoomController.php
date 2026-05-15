@@ -58,9 +58,10 @@ class RoomController extends Controller
                 return response()->json(['message' => 'Check-out date must be after check-in date.'], 422);
             }
 
+            // Use improved conflict detection: only check active reservations
             $booked = Reservation::query()
                 ->whereIn('room_number', $rooms->pluck('room_number'))
-                ->whereNotIn('status', ['cancelled', 'checked_out'])
+                ->whereIn('status', ['pending', 'confirmed', 'checked_in'])
                 ->where('check_in_date', '<', $checkOutDate->toDateString())
                 ->where('check_out_date', '>', $checkInDate->toDateString())
                 ->pluck('room_number')

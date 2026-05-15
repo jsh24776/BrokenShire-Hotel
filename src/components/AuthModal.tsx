@@ -23,6 +23,15 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
   const [isLoading, setIsLoading] = useState(false);
   const [resetSent, setResetSent] = useState(false);
 
+  const isStrongPassword = (value: string) => {
+    if (value.length < 8) return false;
+    if (!/[A-Z]/.test(value)) return false;
+    if (!/[a-z]/.test(value)) return false;
+    if (!/[0-9]/.test(value)) return false;
+    if (!/[^A-Za-z0-9]/.test(value)) return false;
+    return true;
+  };
+
   // Reset state when modal opens/closes
   useEffect(() => {
     if (isOpen) {
@@ -75,22 +84,40 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
       }
 
       if (authMode === 'signup') {
+        if (!email.includes('@')) {
+          setError('Please enter a valid email address (must include "@").');
+          return;
+        }
+
+        const normalizedPhone = phone.replace(/\\D/g, '');
+        if (!/^09\\d{9}$/.test(normalizedPhone)) {
+          setError('Phone number must be 11 digits and start with 09 (e.g. 09171234567).');
+          return;
+        }
+
+        if (!isStrongPassword(password)) {
+          setError('Password must be at least 8 characters and include uppercase, lowercase, number, and special character.');
+          return;
+        }
+
         if (password !== passwordConfirmation) {
           setError('Passwords do not match.');
           return;
         }
 
-        const res = await api.post('/register', {
+        await api.post('/register', {
           name,
           email,
-          phone,
+          phone: normalizedPhone,
           address,
           password,
           password_confirmation: passwordConfirmation,
         });
 
-        setAuth(res.data.token, 'user');
-        onLogin({ name: res.data.user?.name ?? name, role: 'user' });
+        setPassword('');
+        setPasswordConfirmation('');
+        setAuthMode('login');
+        setError('Account created. Please sign in to continue.');
         return;
       }
 
@@ -217,15 +244,17 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
                             <div className="space-y-1">
                               <label className="text-sm font-medium text-forest-800 ml-1">Phone Number</label>
                               <div className="relative">
-                                <input
-                                  type="tel"
-                                  value={phone}
-                                  onChange={(e) => setPhone(e.target.value)}
-                                  placeholder="0917 000 0000"
-                                  className="w-full px-4 py-3 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all"
-                                />
+                                  <input
+                                    type="tel"
+                                    value={phone}
+                                    onChange={(e) => setPhone(e.target.value)}
+                                    inputMode="numeric"
+                                    pattern="^09\\d{9}$"
+                                    placeholder="09171234567"
+                                    className="w-full px-4 py-3 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all"
+                                  />
+                                </div>
                               </div>
-                            </div>
 
                             <div className="space-y-1">
                               <label className="text-sm font-medium text-forest-800 ml-1">Home Address</label>
@@ -282,6 +311,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             placeholder="********"
+                            minLength={8}
                             className="w-full pl-10 pr-4 py-3 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all"
                           />
                         </div>

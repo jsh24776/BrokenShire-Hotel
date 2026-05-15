@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 
 Route::get('/rooms', [RoomController::class, 'index']);
 
@@ -36,6 +38,8 @@ Route::middleware(['auth:sanctum', 'token.user'])->group(function () {
 
 Route::prefix('admin')->group(function () {
     Route::post('/login', [AdminAuthController::class, 'login']);
+    Route::post('/forgot-password', [AdminAuthController::class, 'forgotPassword']);
+    Route::post('/reset-password', [AdminAuthController::class, 'resetPassword']);
 
     Route::middleware(['auth:sanctum', 'token.admin'])->group(function () {
         Route::post('/logout', [AdminAuthController::class, 'logout']);

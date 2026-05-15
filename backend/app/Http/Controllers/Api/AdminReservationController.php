@@ -91,6 +91,21 @@ class AdminReservationController extends Controller
         $checkOut = Carbon::parse($validated['check_out_date'])->startOfDay();
         $nights = max(1, $checkIn->diffInDays($checkOut));
 
+        // Check for double-booking: prevent overlapping reservations
+        $conflictExists = DB::table('reservations')
+            ->where('room_number', $room->room_number)
+            ->whereIn('status', ['pending', 'confirmed', 'checked_in'])
+            ->where(function ($query) use ($checkIn, $checkOut) {
+                $query->where('check_out_date', '>', $checkIn->toDateString())
+                    ->where('check_in_date', '<', $checkOut->toDateString());
+            })
+            ->lockForUpdate()
+            ->exists();
+
+        if ($conflictExists) {
+            return response()->json(['message' => 'This room is already booked for the selected dates.'], 409);
+        }
+
         $amountCents = (int) $room->base_rate_cents * $nights;
 
         $reservation = DB::transaction(function () use ($user, $room, $checkIn, $checkOut, $nights, $amountCents, $validated) {
@@ -155,6 +170,29 @@ class AdminReservationController extends Controller
 
         if ($checkOut->lessThanOrEqualTo($checkIn)) {
             return response()->json(['message' => 'Check-out date must be after check-in date.'], 422);
+        }
+
+        // Check for double-booking when dates or room changes
+        $hasDateChange = array_key_exists('check_in_date', $validated) || array_key_exists('check_out_date', $validated);
+        $hasRoomChange = array_key_exists('room_number', $validated);
+
+        if ($hasDateChange || $hasRoomChange) {
+            $roomToCheck = $room ? $room->room_number : $reservation->room_number;
+            
+            $conflictExists = DB::table('reservations')
+                ->where('room_number', $roomToCheck)
+                ->where('id', '!=', $reservation->id) // Exclude current reservation
+                ->whereIn('status', ['pending', 'confirmed', 'checked_in'])
+                ->where(function ($query) use ($checkIn, $checkOut) {
+                    $query->where('check_out_date', '>', $checkIn->toDateString())
+                        ->where('check_in_date', '<', $checkOut->toDateString());
+                })
+                ->lockForUpdate()
+                ->exists();
+
+            if ($conflictExists) {
+                return response()->json(['message' => 'This room is already booked for the selected dates.'], 409);
+            }
         }
 
         $reservation->check_in_date = $checkIn->toDateString();
