@@ -773,19 +773,12 @@ export default function SearchRooms() {
                         </div>
                         <div className="space-y-2">
                           <label className="text-sm font-medium text-forest-800">Number of Guests</label>
-                          <div className="relative">
-                            <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-forest-400" />
-                            <select
-                              value={guests}
-                              onChange={(e) => setGuests(e.target.value)}
-                              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-earth-200 focus:border-forest-500 outline-none appearance-none bg-white"
-                            >
-                              <option value="1">1 Guest</option>
-                              <option value="2">2 Guests</option>
-                              <option value="3">3 Guests</option>
-                              <option value="4">4 Guests</option>
-                            </select>
+                          <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-earth-100 bg-earth-50 text-forest-900 font-semibold">
+                            <Users className="w-4 h-4 text-forest-400" />
+                            {guests} {Number(guests) === 1 ? 'Guest' : 'Guests'}
+                            <span className="ml-auto text-[10px] font-bold uppercase tracking-widest text-forest-700/40">Locked</span>
                           </div>
+                          <p className="text-xs text-forest-700/50">Based on your search selection.</p>
                         </div>
                       </div>
                     </motion.div>

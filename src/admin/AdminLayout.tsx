@@ -12,6 +12,7 @@ import {
   X,
   Leaf
 } from 'lucide-react';
+import { clearAuth } from '../lib/auth';
 
 export default function AdminLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -27,6 +28,7 @@ export default function AdminLayout() {
   ];
 
   const handleLogout = () => {
+    clearAuth();
     navigate('/');
   };
 

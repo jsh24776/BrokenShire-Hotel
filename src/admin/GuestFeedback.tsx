@@ -1,6 +1,6 @@
-﻿import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Star, ThumbsUp, MessageCircle, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Star, ThumbsUp, MessageCircle, Loader2, AlertCircle } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -11,7 +11,9 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
+import { api } from '../lib/api';
 
+// ─── Mock chart data (kept as mock per requirements) ────────────────────────
 const feedbackData = [
   { month: 'Jan', rating5: 45, rating4: 30, rating3: 15, rating2: 8, rating1: 2 },
   { month: 'Feb', rating5: 38, rating4: 28, rating3: 18, rating2: 12, rating1: 4 },
@@ -21,37 +23,88 @@ const feedbackData = [
   { month: 'Jun', rating5: 75, rating4: 42, rating3: 6, rating2: 1, rating1: 0 },
 ];
 
-const sampleReviews = [
-  { id: 1, guest: 'Maria Santos', rating: 5, comment: 'Excellent service and beautiful facilities!', date: '2024-06-15' },
-  { id: 2, guest: 'John Dela Cruz', rating: 5, comment: 'Amazing experience. Highly recommended!', date: '2024-06-14' },
-  { id: 3, guest: 'Ana Torres', rating: 4, comment: 'Great stay, could improve the breakfast menu.', date: '2024-06-13' },
-  { id: 4, guest: 'Carlos Reyes', rating: 5, comment: 'Perfect for a relaxing getaway.', date: '2024-06-12' },
-  { id: 5, guest: 'Rosa Mercado', rating: 4, comment: 'Good service, room was clean.', date: '2024-06-11' },
-];
+// ─── Types ───────────────────────────────────────────────────────────────────
+interface ReviewItem {
+  id: number;
+  guest_name: string;
+  rating: number;
+  comment: string;
+  created_at: string;
+  room_name: string;
+  room_number: string | null;
+}
 
+interface FeedbackStats {
+  total_reviews: number;
+  avg_rating: number;
+  satisfaction_score: number;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+const totalReviewsMock = feedbackData.reduce(
+  (sum, item) => sum + item.rating5 + item.rating4 + item.rating3 + item.rating2 + item.rating1,
+  0
+);
+
+const avgRatingMock = (
+  feedbackData.reduce(
+    (sum, item) =>
+      sum +
+      item.rating5 * 5 +
+      item.rating4 * 4 +
+      item.rating3 * 3 +
+      item.rating2 * 2 +
+      item.rating1 * 1,
+    0
+  ) / totalReviewsMock
+).toFixed(1);
+
+const satisfactionScoreMock = (
+  (feedbackData.reduce((sum, item) => sum + item.rating5 + item.rating4, 0) / totalReviewsMock) *
+  100
+).toFixed(1);
+
+// ─── Component ───────────────────────────────────────────────────────────────
 export default function GuestFeedback() {
   const navigate = useNavigate();
 
-  const totalReviews = feedbackData.reduce(
-    (sum, item) => sum + item.rating5 + item.rating4 + item.rating3 + item.rating2 + item.rating1,
-    0
-  );
+  const [reviews, setReviews] = useState<ReviewItem[]>([]);
+  const [stats, setStats] = useState<FeedbackStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const avgRating =
-    (feedbackData.reduce(
-      (sum, item) =>
-        sum +
-        item.rating5 * 5 +
-        item.rating4 * 4 +
-        item.rating3 * 3 +
-        item.rating2 * 2 +
-        item.rating1 * 1,
-      0
-    ) / totalReviews).toFixed(1);
+  useEffect(() => {
+    let cancelled = false;
 
-  const satisfactionScore = (
-    ((feedbackData.reduce((sum, item) => sum + item.rating5 + item.rating4, 0) / totalReviews) * 100).toFixed(1)
-  );
+    const fetchFeedback = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const { data } = await api.get('/admin/feedbacks');
+        if (!cancelled) {
+          setReviews(data.feedbacks ?? []);
+          setStats(data.stats ?? null);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setError(
+            err?.response?.data?.message ??
+              'Failed to load guest reviews. Please try again.'
+          );
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    fetchFeedback();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Use real stats when available, fall back to mock chart stats
+  const displayAvgRating = stats ? stats.avg_rating.toFixed(1) : avgRatingMock;
+  const displayTotalReviews = stats ? stats.total_reviews : totalReviewsMock;
+  const displaySatisfaction = stats ? stats.satisfaction_score.toFixed(1) : satisfactionScoreMock;
 
   return (
     <div className="space-y-6">
@@ -74,13 +127,13 @@ export default function GuestFeedback() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-forest-700/70">Average Rating</p>
-              <p className="text-3xl font-bold text-forest-900 mt-2">{avgRating}</p>
+              <p className="text-3xl font-bold text-forest-900 mt-2">{displayAvgRating}</p>
               <div className="flex items-center gap-1 mt-2">
                 {[...Array(5)].map((_, i) => (
                   <Star
                     key={i}
                     className={`w-4 h-4 ${
-                      i < Math.floor(Number(avgRating))
+                      i < Math.floor(Number(displayAvgRating))
                         ? 'fill-amber-400 text-amber-400'
                         : 'text-earth-300'
                     }`}
@@ -98,8 +151,8 @@ export default function GuestFeedback() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-forest-700/70">Total Reviews</p>
-              <p className="text-3xl font-bold text-forest-900 mt-2">{totalReviews}</p>
-              <p className="text-xs text-forest-700/60 mt-2">YTD feedback</p>
+              <p className="text-3xl font-bold text-forest-900 mt-2">{displayTotalReviews}</p>
+              <p className="text-xs text-forest-700/60 mt-2">All-time feedback</p>
             </div>
             <div className="w-12 h-12 bg-forest-50 rounded-xl flex items-center justify-center text-forest-600">
               <MessageCircle className="w-6 h-6" />
@@ -111,7 +164,7 @@ export default function GuestFeedback() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-forest-700/70">Satisfaction Score</p>
-              <p className="text-3xl font-bold text-emerald-700 mt-2">{satisfactionScore}%</p>
+              <p className="text-3xl font-bold text-emerald-700 mt-2">{displaySatisfaction}%</p>
               <p className="text-xs text-forest-700/60 mt-2">4-5 star ratings</p>
             </div>
             <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600">
@@ -121,7 +174,7 @@ export default function GuestFeedback() {
         </div>
       </div>
 
-      {/* Rating Distribution Chart */}
+      {/* Rating Distribution Chart (mock data) */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-earth-100">
         <h3 className="text-lg font-semibold text-forest-900 mb-6">Rating Distribution (YTD)</h3>
         <div className="h-80">
@@ -142,38 +195,104 @@ export default function GuestFeedback() {
         </div>
       </div>
 
-      {/* Recent Reviews */}
+      {/* Recent Reviews — REAL DATA from database */}
       <div className="bg-white rounded-2xl shadow-sm border border-earth-100 overflow-hidden">
-        <div className="p-6 border-b border-earth-100 bg-earth-50/50">
+        <div className="p-6 border-b border-earth-100 bg-earth-50/50 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-forest-900">Recent Guest Reviews</h3>
+          {!loading && !error && reviews.length > 0 && (
+            <span className="text-xs text-forest-700/60 bg-earth-100 px-3 py-1 rounded-full">
+              {reviews.length} review{reviews.length !== 1 ? 's' : ''}
+            </span>
+          )}
         </div>
-        <div className="divide-y divide-earth-100">
-          {sampleReviews.map((review) => (
-            <div key={review.id} className="p-6 hover:bg-earth-50/50 transition-colors">
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <p className="font-medium text-forest-900">{review.guest}</p>
-                  <p className="text-xs text-forest-700/60">{new Date(review.date).toLocaleDateString('en-PH')}</p>
+
+        {/* Loading state */}
+        {loading && (
+          <div className="flex flex-col items-center justify-center py-16 gap-3 text-forest-700/60">
+            <Loader2 className="w-8 h-8 animate-spin text-forest-600" />
+            <p className="text-sm">Loading guest reviews…</p>
+          </div>
+        )}
+
+        {/* Error state */}
+        {!loading && error && (
+          <div className="flex flex-col items-center justify-center py-16 gap-3 text-red-600/80">
+            <AlertCircle className="w-8 h-8" />
+            <p className="text-sm font-medium">{error}</p>
+            <button
+              onClick={() => {
+                setLoading(true);
+                setError(null);
+                api.get('/admin/feedbacks')
+                  .then(({ data }) => {
+                    setReviews(data.feedbacks ?? []);
+                    setStats(data.stats ?? null);
+                  })
+                  .catch((err) =>
+                    setError(err?.response?.data?.message ?? 'Failed to load guest reviews.')
+                  )
+                  .finally(() => setLoading(false));
+              }}
+              className="text-xs text-forest-700 underline hover:text-forest-900 transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!loading && !error && reviews.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-16 gap-3 text-forest-700/50">
+            <MessageCircle className="w-10 h-10" />
+            <p className="text-sm font-medium">No reviews submitted yet.</p>
+            <p className="text-xs">Guest reviews will appear here once submitted.</p>
+          </div>
+        )}
+
+        {/* Reviews list */}
+        {!loading && !error && reviews.length > 0 && (
+          <div className="divide-y divide-earth-100">
+            {reviews.map((review) => (
+              <div key={review.id} className="p-6 hover:bg-earth-50/50 transition-colors">
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <p className="font-medium text-forest-900">{review.guest_name}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {review.room_name && (
+                        <span className="text-xs text-forest-700/60 bg-earth-100 px-2 py-0.5 rounded-full">
+                          {review.room_name}{review.room_number ? ` · Rm ${review.room_number}` : ''}
+                        </span>
+                      )}
+                      <p className="text-xs text-forest-700/50">
+                        {new Date(review.created_at).toLocaleDateString('en-PH', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {[...Array(5)].map((_, i) => (
+                      <Star
+                        key={i}
+                        className={`w-4 h-4 ${
+                          i < review.rating
+                            ? 'fill-amber-400 text-amber-400'
+                            : 'text-earth-300'
+                        }`}
+                      />
+                    ))}
+                  </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  {[...Array(5)].map((_, i) => (
-                    <Star
-                      key={i}
-                      className={`w-4 h-4 ${
-                        i < review.rating
-                          ? 'fill-amber-400 text-amber-400'
-                          : 'text-earth-300'
-                      }`}
-                    />
-                  ))}
-                </div>
+                {review.comment && (
+                  <p className="text-sm text-forest-700 leading-relaxed">{review.comment}</p>
+                )}
               </div>
-              <p className="text-sm text-forest-700 leading-relaxed">{review.comment}</p>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
-

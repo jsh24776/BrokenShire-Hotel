@@ -115,7 +115,7 @@ class BookingController extends Controller
             ->exists();
 
         if ($conflictExists) {
-            return response()->json(['message' => 'Selected dates are no longer available for this room.'], 409);
+            return response()->json(['message' => 'The room is taken.'], 409);
         }
 
         $amountCents = (int) $room->base_rate_cents * $nights;

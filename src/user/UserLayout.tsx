@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import HelpChatbot from './HelpChatbot';
 import { markAllGuestNotificationsRead, useGuestNotifications } from './notifications';
+import { clearAuth } from '../lib/auth';
 
 export default function UserLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -38,6 +39,7 @@ export default function UserLayout() {
   ];
 
   const handleLogout = () => {
+    clearAuth();
     navigate('/');
   };
 

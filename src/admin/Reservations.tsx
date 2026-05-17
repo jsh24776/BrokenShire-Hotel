@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import axios from 'axios';
 import {
   AlertTriangle,
@@ -139,6 +139,8 @@ export default function Reservations() {
         return 'bg-emerald-100 text-emerald-800';
       case 'pending':
         return 'bg-amber-100 text-amber-800';
+      case 'checked_in':
+        return 'bg-blue-100 text-blue-800';
       case 'checked_out':
         return 'bg-slate-100 text-slate-800';
       case 'cancelled':
@@ -360,8 +362,8 @@ export default function Reservations() {
 
   const checkInReservation = async (r: Reservation) => {
     try {
-      await api.patch(`/admin/reservations/${r.id}`, { status: 'checked_in' });
-      showToast('Guest checked in successfully.', 'success');
+      await api.patch(`/admin/reservations/${r.id}/check-in`);
+      showToast(`Guest ${r.user?.name ?? ''} successfully checked in.`, 'success');
       setOpenMenuId(null);
       await fetchReservations();
     } catch (err) {
@@ -450,7 +452,8 @@ export default function Reservations() {
                       <option value="">All</option>
                       <option value="pending">Pending</option>
                       <option value="confirmed">Confirmed</option>
-                      <option value="checked_out">Checked out</option>
+                      <option value="checked_in">Checked In</option>
+                      <option value="checked_out">Checked Out</option>
                       <option value="cancelled">Cancelled</option>
                     </select>
                   </label>
@@ -582,12 +585,12 @@ export default function Reservations() {
                                 <FileText className="w-4 h-4 text-earth-600" />
                                 <span>View Receipt</span>
                               </button>
-                              {r.status !== 'checked_out' && r.status !== 'cancelled' && (
+                              {(r.status === 'confirmed' || r.status === 'pending') && (
                                 <button
                                   onClick={() => checkInReservation(r)}
-                                  className="w-full text-left px-4 py-2.5 flex items-center gap-3 hover:bg-earth-50 transition-colors text-sm text-forest-800"
+                                  className="w-full text-left px-4 py-2.5 flex items-center gap-3 hover:bg-blue-50 transition-colors text-sm text-blue-800"
                                 >
-                                  <LogIn className="w-4 h-4 text-forest-600" />
+                                  <LogIn className="w-4 h-4 text-blue-600" />
                                   <span>Check-in Guest</span>
                                 </button>
                               )}

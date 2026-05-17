@@ -1,6 +1,6 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Mail, Lock, User, ArrowRight, Shield } from 'lucide-react';
+import { X, Mail, Lock, User, ArrowRight, Shield, Eye, EyeOff } from 'lucide-react';
 import axios from 'axios';
 import { api } from '../lib/api';
 import { setAuth } from '../lib/auth';
@@ -22,6 +22,8 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const isStrongPassword = (value: string) => {
     if (value.length < 8) return false;
@@ -44,6 +46,8 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
       setPasswordConfirmation('');
       setAuthMode('login');
       setResetSent(false);
+      setShowPassword(false);
+      setShowConfirmPassword(false);
     }
   }, [isOpen]);
 
@@ -57,10 +61,15 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
         return;
       }
       setIsLoading(true);
-      setTimeout(() => {
-        setIsLoading(false);
+      try {
+        await api.post('/forgot-password', { email });
         setResetSent(true);
-      }, 800);
+      } catch (err: any) {
+        const msg = err?.response?.data?.message ?? 'Failed to send reset email. Please try again.';
+        setError(String(msg));
+      } finally {
+        setIsLoading(false);
+      }
       return;
     }
 
@@ -89,8 +98,8 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
           return;
         }
 
-        const normalizedPhone = phone.replace(/\\D/g, '');
-        if (!/^09\\d{9}$/.test(normalizedPhone)) {
+        const normalizedPhone = phone.replace(/\D/g, '');
+        if (!/^09\d{9}$/.test(normalizedPhone)) {
           setError('Phone number must be 11 digits and start with 09 (e.g. 09171234567).');
           return;
         }
@@ -307,13 +316,22 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
                         <div className="relative">
                           <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-forest-800/40" />
                           <input
-                            type="password"
+                            type={showPassword ? 'text' : 'password'}
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             placeholder="********"
                             minLength={8}
-                            className="w-full pl-10 pr-4 py-3 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all"
+                            className="w-full pl-10 pr-11 py-3 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all"
                           />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword((v) => !v)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-forest-800/40 hover:text-forest-800/70 transition-colors focus:outline-none"
+                            tabIndex={-1}
+                            aria-label={showPassword ? 'Hide password' : 'Show password'}
+                          >
+                            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                          </button>
                         </div>
                       </div>
                     )}
@@ -324,12 +342,21 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
                         <div className="relative">
                           <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-forest-800/40" />
                           <input
-                            type="password"
+                            type={showConfirmPassword ? 'text' : 'password'}
                             value={passwordConfirmation}
                             onChange={(e) => setPasswordConfirmation(e.target.value)}
                             placeholder="********"
-                            className="w-full pl-10 pr-4 py-3 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all"
+                            className="w-full pl-10 pr-11 py-3 rounded-xl border border-earth-200 focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 outline-none transition-all"
                           />
+                          <button
+                            type="button"
+                            onClick={() => setShowConfirmPassword((v) => !v)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-forest-800/40 hover:text-forest-800/70 transition-colors focus:outline-none"
+                            tabIndex={-1}
+                            aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                          >
+                            {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                          </button>
                         </div>
                       </div>
                     )}

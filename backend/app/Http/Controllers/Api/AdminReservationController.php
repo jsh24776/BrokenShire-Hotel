@@ -103,7 +103,7 @@ class AdminReservationController extends Controller
             ->exists();
 
         if ($conflictExists) {
-            return response()->json(['message' => 'This room is already booked for the selected dates.'], 409);
+            return response()->json(['message' => 'The room is taken.'], 409);
         }
 
         $amountCents = (int) $room->base_rate_cents * $nights;
@@ -191,7 +191,7 @@ class AdminReservationController extends Controller
                 ->exists();
 
             if ($conflictExists) {
-                return response()->json(['message' => 'This room is already booked for the selected dates.'], 409);
+                return response()->json(['message' => 'The room is taken.'], 409);
             }
         }
 
@@ -234,6 +234,22 @@ class AdminReservationController extends Controller
         }
 
         $reservation->status = 'confirmed';
+        $reservation->save();
+
+        $reservation->load(['user:id,name,email', 'invoice']);
+
+        return response()->json(['reservation' => $reservation]);
+    }
+
+    public function checkIn(Reservation $reservation)
+    {
+        if (!in_array($reservation->status, ['confirmed', 'pending'], true)) {
+            return response()->json([
+                'message' => 'Only confirmed or pending reservations can be checked in.',
+            ], 409);
+        }
+
+        $reservation->status = 'checked_in';
         $reservation->save();
 
         $reservation->load(['user:id,name,email', 'invoice']);

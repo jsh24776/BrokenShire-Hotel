@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AdminAuthController;
 use App\Http\Controllers\Api\AdminGuestController;
 use App\Http\Controllers\Api\AdminRoomController;
 use App\Http\Controllers\Api\AdminReservationController;
+use App\Http\Controllers\Api\AdminFeedbackController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\FeedbackController;
@@ -60,9 +61,12 @@ Route::prefix('admin')->group(function () {
         Route::get('/reservations', [AdminReservationController::class, 'index']);
         Route::post('/reservations', [AdminReservationController::class, 'store']);
         Route::put('/reservations/{reservation}', [AdminReservationController::class, 'update']);
+        Route::patch('/reservations/{reservation}/check-in', [AdminReservationController::class, 'checkIn']);
         Route::patch('/reservations/{reservation}/record-payment', [AdminReservationController::class, 'recordPayment']);
         Route::patch('/reservations/{reservation}/refund', [AdminReservationController::class, 'refund']);
         Route::patch('/reservations/{reservation}/confirm', [AdminReservationController::class, 'confirm']);
         Route::patch('/reservations/{reservation}/cancel', [AdminReservationController::class, 'cancel']);
+
+        Route::get('/feedbacks', [AdminFeedbackController::class, 'index']);
     });
 });

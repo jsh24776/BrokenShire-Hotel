@@ -31,7 +31,7 @@ class RoomController extends Controller
         }
 
         if ($guests > 0) {
-            $query->where('capacity', '>=', $guests);
+            $query->where('capacity', '=', $guests);
         }
 
         $rooms = $query->get([
