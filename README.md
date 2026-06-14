@@ -14,9 +14,9 @@ The **Brokenshire Hotel Management System (BHMS)** was created with a clear miss
 By replacing physical logbooks and manual tracking with a streamlined digital system, BHMS optimizes day-to-day efficiency for hotel staff, secures data management, and creates a smoother experience for guests.
 
 ### 👥 Development Team
-* **John Paul Domong-as** – Software Engineer
-* **Julie Anne A. Pesana** – Software Engineer
-* **Gabriel Joshua Regidor** – Software Engineer
+* **John Paul Domong-as** – UI Designer and Tester
+* **Julie Anne A. Pesana** – Database Designer and System Analyst
+* **Gabriel Joshua Regidor** – Software Engineer / Lead Developer
 
 ### ✨ Core Features & Objectives
 * **Paperless Operations:** Digitizing guest records, room statuses, and transactions to minimize physical paperwork and clerical errors.
